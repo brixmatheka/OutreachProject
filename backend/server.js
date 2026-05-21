@@ -6,6 +6,11 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import dns from "node:dns";
 import https from "node:https";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Use Google DNS to resolve MongoDB Atlas SRV records
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
@@ -17,7 +22,7 @@ import Project from "./models/Project.js";
 import Member from "./models/Member.js";
 import BaptismRequest from "./models/BaptismRequest.js";
 
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, ".env") });
 
 const app = express();
 

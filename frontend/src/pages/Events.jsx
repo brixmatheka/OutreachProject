@@ -116,13 +116,13 @@ function EventCard({ event, userProfile }) {
     if (userProfile) {
       setAttendeeData({
         name: `${userProfile.firstName || ""} ${userProfile.lastName || ""}`.trim(),
-        idNumber: userProfile.idNumber || "",
+        idNumber: userProfile.idNo || "",
         phone: userProfile.phone || "",
       });
     } else {
       setAttendeeData({
         name: localStorage.getItem("memberName") ? `${localStorage.getItem("memberName")} ${localStorage.getItem("memberLastName") || ""}`.trim() : "",
-        idNumber: localStorage.getItem("memberIdNumber") || "",
+        idNumber: localStorage.getItem("memberIdNo") || "",
         phone: localStorage.getItem("memberPhone") || "",
       });
     }
@@ -246,6 +246,10 @@ function EventCard({ event, userProfile }) {
                     onClick={async () => {
                       if (!attendeeData.name || !attendeeData.idNumber || !attendeeData.phone) {
                         alert("Please fill in all details to confirm attendance.");
+                        return;
+                      }
+                      if (userProfile && userProfile.idNo && attendeeData.idNumber !== userProfile.idNo) {
+                        alert("Invalid ID number. Please enter the correct ID number associated with your profile.");
                         return;
                       }
                       try {
