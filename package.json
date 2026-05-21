@@ -1,0 +1,16 @@
+{
+  "name": "outreach-project",
+  "version": "1.0.0",
+  "description": "Outreach Hope Church Sunshine website",
+  "scripts": {
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\""
+  },
+  "dependencies": {
+    "mongodb": "^7.2.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

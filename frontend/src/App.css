@@ -1,0 +1,348 @@
+/* RESET */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  background: #020617;
+}
+
+/* ROOT */
+.app-root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: radial-gradient(circle at top left, #0ea5e9, #020617 60%);
+  color: #f9fafb;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* SKY BLUE GLOW */
+.app-root::before {
+  content: "";
+  position: fixed;
+  top: -250px;
+  left: -250px;
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.25), transparent);
+  z-index: 0;
+}
+
+/* HEADER */
+.app-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem 6vw;
+  backdrop-filter: blur(14px);
+  background: linear-gradient(to right, rgba(2, 6, 23, 0.95), rgba(2, 6, 23, 0.6));
+  border-bottom: 1px solid rgba(14, 165, 233, 0.3);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* BRAND */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.brand-mark {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+  box-shadow: 0 10px 40px rgba(14, 165, 233, 0.7);
+}
+
+.brand-logo-img {
+  width: 2.8rem;
+  height: 2.8rem;
+  object-fit: contain;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(14, 165, 233, 0.2);
+  filter: drop-shadow(0 0 8px rgba(14, 165, 233, 0.45));
+}
+
+.brand-name {
+  font-size: 1.3rem;
+  font-weight: 1000;
+  color: white;
+}
+
+.brand-tagline {
+  font-size: 0.8rem;
+  color: #7dd3fc;
+}
+
+/* NAV BUTTONS */
+.feature-nav {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.feature-nav button {
+  border-radius: 999px;
+  padding: 0.55rem 1.2rem;
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  background: rgba(2, 6, 23, 0.7);
+  color: #e0f2fe;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.feature-nav button:hover {
+  background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+  color: #020617;
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 10px 30px rgba(14, 165, 233, 0.6);
+}
+
+/* MAIN */
+.app-main {
+  flex: 1;
+  padding: 3rem 6vw;
+  display: flex;
+  justify-content: center;
+  z-index: 1;
+}
+
+/* HERO */
+.hero {
+  max-width: 1050px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2.2rem;
+
+}
+
+.hero h1 {
+  font-size: 3rem;
+  font-weight: 800;
+  background: linear-gradient(to right, #38bdf6, #38bdf9);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* FEATURE CARD */
+.feature-card {
+  background: rgba(2, 6, 23, 0.85);
+  backdrop-filter: blur(20px);
+  border-radius: 1.5rem;
+  padding: 1.6rem;
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.8);
+  transition: all 0.3s ease;
+}
+
+.feature-card:hover {
+  transform: translateY(-8px) scale(1.01);
+  box-shadow: 0 40px 100px rgba(14, 165, 233, 0.5);
+}
+
+/* HEADER INSIDE CARD */
+.feature-header {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.feature-icon {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+  color: #020617;
+  font-size: 1.2rem;
+  box-shadow: 0 10px 25px rgba(14, 165, 233, 0.6);
+}
+
+/* TITLES */
+.feature-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.feature-titlegive {
+  color: #22c55e;
+  font-weight: 800;
+}
+
+/* TEXT UNDER COMPONENTS */
+.feature-description {
+  font-size: 0.95rem;
+  color: #13843c;
+  line-height: 1.6;
+}
+
+/* LIST */
+.feature-list {
+  margin-top: 0.7rem;
+  padding-left: 1.3rem;
+  font-size: 0.9rem;
+  color: #bbf7d0;
+  /* light green */
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* FOOTER PILLS */
+.feature-footer {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}
+
+.feature-pill {
+  font-size: 0.75rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.5);
+  color: #22c55e;
+}
+
+/* GIVE CARD */
+.give-card {
+  background: linear-gradient(to right, rgba(14, 165, 233, 0.2), rgba(34, 197, 94, 0.2));
+  border: 1px solid rgba(34, 197, 94, 0.5);
+}
+
+/* CHAT INPUT */
+.chat-input {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.chat-input input {
+  flex: 1;
+  border-radius: 999px;
+  border: 1px solid rgba(14, 165, 233, 0.4);
+  background: rgba(2, 6, 23, 0.8);
+  color: #e0f2fe;
+  padding: 0.5rem 1rem;
+}
+
+.chat-input input:focus {
+  outline: none;
+  border-color: #22c55e;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+}
+
+/* FOOTER */
+.app-footer {
+  padding: 1.5rem 6vw;
+  border-top: 1px solid rgba(14, 165, 233, 0.3);
+  font-size: 0.85rem;
+  color: #7dd3fc;
+}
+
+/* AUTH & HEADER TOP */
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.auth-nav {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.auth-buttons {
+  display: flex;
+  gap: 0.8rem;
+}
+
+.login-btn {
+  text-decoration: none;
+  color: #7dd3fc;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0.5rem 1rem;
+  transition: color 0.2s;
+}
+
+.login-btn:hover {
+  color: #fff;
+}
+
+.signup-btn {
+  text-decoration: none;
+  background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+  color: #020617;
+  padding: 0.5rem 1.4rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4);
+  transition: all 0.3s ease;
+}
+
+.signup-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(14, 165, 233, 0.6);
+}
+
+.user-profile {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  background: rgba(14, 165, 233, 0.1);
+  padding: 0.4rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(14, 165, 233, 0.3);
+}
+
+.welcome-text {
+  font-size: 0.9rem;
+  color: #e0f2fe;
+}
+
+.welcome-text strong {
+  color: #38bdf8;
+}
+
+.logout-link {
+  background: none;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0;
+  transition: opacity 0.2s;
+}
+
+.logout-link:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+.hero-subtitle {
+  font-size: 1.2rem;
+  color: #94a3b8;
+  margin-top: -1.5rem;
+  margin-bottom: 2rem;
+}
