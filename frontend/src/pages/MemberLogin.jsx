@@ -142,7 +142,7 @@ function MemberLogin() {
               margin: 0,
               maxWidth: "240px",
             }}>
-              Sign in to access events, giving, prayer requests, and more.
+              Sign in to access events, giving, prayer requests and more.
             </p>
           </div>
 
@@ -223,7 +223,7 @@ function MemberLogin() {
                 required
                 value={credentials.email}
                 onChange={handleChange}
-                placeholder="john@example.com"
+                placeholder="e,g john@example.com"
                 style={inputStyle("email")}
                 onFocus={() => setFocusedField("email")}
                 onBlur={() => setFocusedField(null)}
@@ -246,7 +246,7 @@ function MemberLogin() {
                   required
                   value={credentials.password}
                   onChange={handleChange}
-                  placeholder="••••••••"
+                  placeholder="password"
                   style={{ ...inputStyle("password"), paddingRight: "58px" }}
                   onFocus={() => setFocusedField("password")}
                   onBlur={() => setFocusedField(null)}

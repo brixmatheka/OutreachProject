@@ -96,7 +96,7 @@ const styles = {
   eventDesc: { margin: "0 0 16px", fontSize: "0.88rem", color: "#cbd5e1", lineHeight: 1.6 },
   eventDescPast: { margin: "0 0 16px", fontSize: "0.88rem", color: "#64748b", lineHeight: 1.6 },
   emptyState: { textAlign: "center", padding: "40px 0", color: "#64748b", fontSize: "0.9rem" },
-  
+
   filterRow: {
     display: "flex",
     flexWrap: "wrap",
@@ -287,10 +287,10 @@ function AdminEvents() {
           </thead>
           <tbody>
             ${filtered.map(r => {
-              const evDate = new Date(r.date);
-              evDate.setHours(0, 0, 0, 0);
-              const status = evDate >= today ? "Upcoming" : "Past";
-              return `
+      const evDate = new Date(r.date);
+      evDate.setHours(0, 0, 0, 0);
+      const status = evDate >= today ? "Upcoming" : "Past";
+      return `
                 <tr>
                   <td><b>${r.title}</b></td>
                   <td>${new Date(r.date).toLocaleDateString()}</td>
@@ -298,7 +298,7 @@ function AdminEvents() {
                   <td>${r.description}</td>
                 </tr>
               `;
-            }).join('')}
+    }).join('')}
           </tbody>
         </table>
       </body>
@@ -388,23 +388,23 @@ function AdminEvents() {
   }, [token]);
 
   const shareToWhatsApp = (eventData) => {
-    const formattedDate = new Date(eventData.date).toLocaleDateString("en-US", { 
-      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+    const formattedDate = new Date(eventData.date).toLocaleDateString("en-US", {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
     });
-    
-    const message = 
-      `⛪ *OUTREACH HOPE CHURCH*\n` +
+
+    const message =
+      `⛪ OUTREACH HOPE CHURCH Sunshine\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
-      `🌟 *NEW EVENT ANNOUNCEMENT* 🌟\n\n` +
-      `📌 *Topic:* ${eventData.title.toUpperCase()}\n` +
-      `📅 *Date:* ${formattedDate}\n` +
-      `📍 *Location:* OHC Sunshine Sanctuary\n\n` +
-      `📝 *About:* \n${eventData.description}\n\n` +
+      `🌟 NEW EVENT ANNOUNCEMENT 🌟\n\n` +
+      `📌 Topic: ${eventData.title.toUpperCase()}\n` +
+      `📅 Date: ${formattedDate}\n` +
+      `📍 Location: OHC Sunshine Sanctuary\n\n` +
+      `📝 About: \n${eventData.description}\n\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
-      `🔗 *View more details here:*\n` +
+      `🔗 View more details here:\n` +
       `https://outreachhopechurch.org/events\n\n` +
-      `*#OutreachHopeChurch #ChurchEvents #Sunshine*`;
-    
+      `#OutreachHopeChurch #ChurchEvents #Sunshine`;
+
     const encodedMessage = encodeURIComponent(message);
     window.open(`https://wa.me/?text=${encodedMessage}`, "_blank");
   };
@@ -430,7 +430,7 @@ function AdminEvents() {
       const newEvent = { title, date, description };
       setTitle(""); setDate(""); setDescription("");
       fetchEvents();
-      
+
       shareToWhatsApp(newEvent);
     } catch (err) { alert("Error creating event"); }
   };
@@ -477,13 +477,13 @@ function AdminEvents() {
           <h3 style={styles.sectionHeading}>Post a New Event</h3>
           <div style={styles.formGrid}>
             <input className="dash-input" placeholder="Event Title" value={title} onChange={(e) => setTitle(e.target.value)} style={styles.input} />
-            <input 
-              className="dash-input" 
-              type="date" 
-              value={date} 
-              onChange={(e) => setDate(e.target.value)} 
+            <input
+              className="dash-input"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
               min={new Date().toISOString().split("T")[0]}
-              style={styles.input} 
+              style={styles.input}
             />
           </div>
           <textarea className="dash-input" placeholder="Event description…" value={description} onChange={(e) => setDescription(e.target.value)} style={styles.textarea} />
@@ -495,17 +495,17 @@ function AdminEvents() {
         {/* Dynamic Filters & Modern Report Panel */}
         <div style={styles.filterRow} className="no-print">
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", flex: 1, alignItems: "center" }}>
-            <input 
-              className="dash-input" 
-              placeholder="🔍 Search title or desc..." 
-              value={searchQuery} 
-              onChange={(e) => setSearchQuery(e.target.value)} 
-              style={{ ...styles.input, width: "200px" }} 
+            <input
+              className="dash-input"
+              placeholder="🔍 Search title or desc..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ ...styles.input, width: "200px" }}
             />
-            
-            <select 
-              value={filterType} 
-              onChange={(e) => setFilterType(e.target.value)} 
+
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
               style={styles.filterSelect}
             >
               <option value="All">All Events</option>
@@ -515,20 +515,20 @@ function AdminEvents() {
 
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <span style={{ fontSize: "0.8rem", color: "#38bdf8", fontWeight: 600 }}>From:</span>
-              <input 
-                className="dash-input" 
-                type="date" 
-                value={startDate} 
-                onChange={(e) => setStartDate(e.target.value)} 
-                style={{ ...styles.input, width: "135px", padding: "6px 10px" }} 
+              <input
+                className="dash-input"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                style={{ ...styles.input, width: "135px", padding: "6px 10px" }}
               />
               <span style={{ fontSize: "0.8rem", color: "#38bdf8", fontWeight: 600 }}>To:</span>
-              <input 
-                className="dash-input" 
-                type="date" 
-                value={endDate} 
-                onChange={(e) => setEndDate(e.target.value)} 
-                style={{ ...styles.input, width: "135px", padding: "6px 10px" }} 
+              <input
+                className="dash-input"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                style={{ ...styles.input, width: "135px", padding: "6px 10px" }}
               />
             </div>
           </div>
@@ -593,10 +593,10 @@ function AdminEvents() {
                           </span>
                         </div>
                         <p style={styles.eventDesc}>{event.description}</p>
-                        
+
                         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }} className="no-print">
                           {(event.attendeesCount > 0 || (event.attendees && event.attendees.length > 0)) && (
-                            <button 
+                            <button
                               onClick={() => setShowAttendeesFor(showAttendeesFor === event._id ? null : event._id)}
                               style={{
                                 background: "rgba(14, 165, 233, 0.1)", color: "#38bdf8", border: "1px solid rgba(14, 165, 233, 0.2)",
@@ -618,7 +618,7 @@ function AdminEvents() {
                           <div style={{ marginTop: "16px", padding: "16px", background: "rgba(15, 23, 42, 0.6)", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.05)" }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                               <h5 style={{ margin: 0, color: "#38bdf8", fontSize: "0.85rem" }}>Attendee Record</h5>
-                              <button 
+                              <button
                                 onClick={() => downloadAttendeesReport(event)}
                                 style={{ background: "linear-gradient(90deg, #10b981, #059669)", color: "#fff", border: "none", borderRadius: "6px", padding: "4px 10px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer" }}
                               >
@@ -684,10 +684,10 @@ function AdminEvents() {
                           </span>
                         </div>
                         <p style={styles.eventDescPast}>{event.description}</p>
-                        
+
                         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }} className="no-print">
                           {(event.attendeesCount > 0 || (event.attendees && event.attendees.length > 0)) && (
-                            <button 
+                            <button
                               onClick={() => setShowAttendeesFor(showAttendeesFor === event._id ? null : event._id)}
                               style={{
                                 background: "rgba(100, 116, 139, 0.1)", color: "#94a3b8", border: "1px solid rgba(100, 116, 139, 0.2)",
@@ -706,7 +706,7 @@ function AdminEvents() {
                           <div style={{ marginTop: "16px", padding: "16px", background: "rgba(15, 23, 42, 0.6)", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.05)" }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                               <h5 style={{ margin: 0, color: "#94a3b8", fontSize: "0.85rem" }}>Attendee Record</h5>
-                              <button 
+                              <button
                                 onClick={() => downloadAttendeesReport(event)}
                                 style={{ background: "linear-gradient(90deg, #10b981, #059669)", color: "#fff", border: "none", borderRadius: "6px", padding: "4px 10px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer" }}
                               >

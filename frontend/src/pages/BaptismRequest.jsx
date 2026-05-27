@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
+import { jsPDF } from "jspdf";
 
 function BaptismRequest() {
   const [formData, setFormData] = useState({
@@ -16,6 +17,11 @@ function BaptismRequest() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [prefilling, setPrefilling] = useState(false);
   const [myRequests, setMyRequests] = useState([]);
+  const [isAlreadyBaptized, setIsAlreadyBaptized] = useState(false);
+  const [showFormAnyway, setShowFormAnyway] = useState(false);
+
+  const completedRequest = myRequests.find(req => req.status === "Completed");
+  const hasCompletedRequest = !!completedRequest;
 
   const fetchMyRequests = (token) => {
     axios.get("http://localhost:5000/api/my-baptism-requests", {
@@ -50,6 +56,7 @@ function BaptismRequest() {
           dateOfBirth: dob,
         }));
         setIsLoggedIn(true);
+        setIsAlreadyBaptized(!!member.isBaptized);
         fetchMyRequests(token);
       })
       .catch(() => {
@@ -130,42 +137,102 @@ function BaptismRequest() {
   };
 
   const downloadCard = (req) => {
-    const html = `
-      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-      <head><meta charset='utf-8'><title>Certificate of Baptism</title>
-      <style>
-        body { font-family: 'Georgia', serif; text-align: center; border: 10px solid #e0f2fe; padding: 40px; margin: 40px; }
-        h1 { color: #0284c7; font-size: 36pt; margin-bottom: 20pt; }
-        p { color: #64748b; font-size: 14pt; }
-        .name { font-size: 28pt; font-weight: bold; color: #0f172a; margin: 20pt 0; border-bottom: 1px solid #000; display: inline-block; padding: 0 40px; }
-        .date { font-size: 16pt; margin-top: 30pt; }
-      </style>
-      </head>
-      <body>
-        <h1>Certificate of Baptism</h1>
-        <p>This certifies that</p>
-        <div class="name">${req.fullName}</div>
-        <p>was publicly baptized in the name of the Father, and of the Son, and of the Holy Spirit.</p>
-        <div class="date">Date: ${new Date(req.preferredDate).toLocaleDateString()}</div>
-        <p style="margin-top: 40pt;">Outreach Hope Church</p>
-      </body>
-      </html>
-    `;
+    const doc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'a4'
+    });
 
-    const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Baptism_Card_${req.fullName.replace(/\s+/g, '_')}.doc`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    // Outer border (Sky blue accent)
+    doc.setDrawColor(14, 165, 233);
+    doc.setLineWidth(2);
+    doc.rect(10, 10, 277, 190);
+
+    // Inner border (Elegant thin border)
+    doc.setDrawColor(2, 132, 199);
+    doc.setLineWidth(0.5);
+    doc.rect(13, 13, 271, 184);
+
+    // Church Header
+    doc.setFont("times", "bold");
+    doc.setFontSize(30);
+    doc.setTextColor(2, 132, 199);
+    doc.text("Outreach Hope Church", 148.5, 42, { align: "center" });
+
+    // Certificate Title
+    doc.setFont("times", "bold");
+    doc.setFontSize(18);
+    doc.setTextColor(100, 116, 139);
+    doc.text("CERTIFICATE OF BAPTISM", 148.5, 56, { align: "center" });
+
+    // Certifies that...
+    doc.setFont("times", "italic");
+    doc.setFontSize(18);
+    doc.setTextColor(71, 85, 105);
+    doc.text("This certifies that", 148.5, 78, { align: "center" });
+
+    // Full Name
+    doc.setFont("times", "bolditalic");
+    doc.setFontSize(32);
+    doc.setTextColor(15, 23, 42);
+    doc.text(req.fullName, 148.5, 98, { align: "center" });
+
+    // Line under the name
+    doc.setDrawColor(15, 23, 42);
+    doc.setLineWidth(0.5);
+    doc.line(70, 103, 227, 103);
+
+    // Core message
+    doc.setFont("times", "italic");
+    doc.setFontSize(16);
+    doc.setTextColor(71, 85, 105);
+    doc.text("was publicly baptized in the name of the Father, and of the Son, and of the Holy Spirit,", 148.5, 122, { align: "center" });
+    doc.text("declaring their faith in Jesus Christ as Lord and Savior.", 148.5, 132, { align: "center" });
+
+    // Date
+    const formattedDate = new Date(req.preferredDate).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    doc.setFont("times", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(15, 23, 42);
+    doc.text("Date: " + formattedDate, 148.5, 155, { align: "center" });
+
+    // Signatures
+    // Left
+    doc.setDrawColor(148, 163, 184);
+    doc.setLineWidth(0.5);
+    doc.line(40, 178, 110, 178);
+    doc.setFont("times", "normal");
+    doc.setFontSize(12);
+    doc.setTextColor(100, 116, 139);
+    doc.text("Senior Pastor", 75, 184, { align: "center" });
+
+    // Right
+    doc.setDrawColor(148, 163, 184);
+    doc.setLineWidth(0.5);
+    doc.line(187, 178, 257, 178);
+    doc.setFont("times", "normal");
+    doc.setFontSize(12);
+    doc.setTextColor(100, 116, 139);
+    doc.text("Ministry Leader", 222, 184, { align: "center" });
+
+    // Save as PDF
+    doc.save(`Baptism_Card_${req.fullName.replace(/\s+/g, '_')}.pdf`);
   };
 
   return (
     <div style={styles.container}>
       <div style={styles.glassCard}>
+        {/* Ribbon decoration at top-right of glass card */}
+        {(isAlreadyBaptized || hasCompletedRequest) && (
+          <div style={styles.ribbon}>
+            Baptized 💧
+          </div>
+        )}
+
         <div style={styles.iconWrapper}>💧</div>
         <h2 style={styles.title}>Request Holy Baptism</h2>
         <p style={styles.subtitle}>
@@ -173,114 +240,164 @@ function BaptismRequest() {
         </p>
 
         {/* Auto-fill notice */}
-        {isLoggedIn && !success && (
+        {isLoggedIn && !isAlreadyBaptized && !hasCompletedRequest && !success && (
           <div style={styles.autofillBanner}>
             ✅ Your details have been auto-filled from your account. You may edit them if needed.
           </div>
         )}
 
         {/* Guest prompt */}
-        {!isLoggedIn && !prefilling && !success && (
+        {!isLoggedIn && !prefilling && !hasCompletedRequest && !success && (
           <div style={styles.guestBanner}>
             💡 <Link to="/login" style={styles.guestLink}>Sign in</Link> to auto-fill your details.
           </div>
         )}
 
-        {success && (
-          <div style={styles.successBanner}>
-            🎉 Request submitted successfully! Our ministry team will contact you soon.
-          </div>
-        )}
-
-        {error && <div style={styles.errorBanner}>{error}</div>}
-
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Full Name</label>
-            <input
-              name="fullName"
-              type="text"
-              required
-              value={formData.fullName}
-              onChange={handleChange}
-              placeholder="Enter your full name"
-              style={styles.input}
-            />
-          </div>
-
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Email Address</label>
-            <input
-              name="email"
-              type="email"
-              required
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="Enter your email"
-              style={styles.input}
-            />
-          </div>
-
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Phone Number</label>
-            <div style={{ display: "flex" }}>
-              <div style={{
-                ...styles.input,
-                width: "auto",
-                borderRight: "none",
-                borderTopRightRadius: 0,
-                borderBottomRightRadius: 0,
-                backgroundColor: "#f8fafc",
-                color: "#64748b",
-                fontWeight: "600",
-                display: "flex",
-                alignItems: "center"
-              }}>
-                +254
-              </div>
-              <input
-                name="phone"
-                type="tel"
-                required
-                value={formData.phone}
-                onChange={handleChange}
-                placeholder="712345678 or 0712345678"
-                maxLength={10}
-                style={{ ...styles.input, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
-              />
+        {hasCompletedRequest ? (
+          <div style={styles.congratsContainer}>
+            <div style={styles.congratsRibbon}>
+              ✨ Congratulations ✨
             </div>
+            <div style={styles.congratsBadge}>💧 Confirmed Baptized 💧</div>
+            <p style={styles.congratsText}>
+              We rejoice with you! Your baptism request has been officially confirmed and completed by our church administration. 
+              May God bless you abundantly as you walk in this newness of life!
+            </p>
+            {completedRequest && (
+              <div style={styles.congratsDetails}>
+                <strong>Baptism Date:</strong> {new Date(completedRequest.preferredDate).toLocaleDateString()}
+              </div>
+            )}
+            <div style={styles.congratsQuote}>
+              "Therefore, if anyone is in Christ, he is a new creation; old things have passed away; behold, all things have become new." — 2 Corinthians 5:17
+            </div>
+            {completedRequest && (
+              <button 
+                type="button"
+                onClick={() => downloadCard(completedRequest)} 
+                style={styles.congratsDownloadBtn}
+              >
+                🎓 Download Baptism Certificate
+              </button>
+            )}
           </div>
-
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Date of Birth</label>
-            <input
-              name="dateOfBirth"
-              type="date"
-              required
-              value={formData.dateOfBirth}
-              onChange={handleChange}
-              style={styles.input}
-              max={new Date(new Date().setFullYear(new Date().getFullYear() - 10)).toISOString().split("T")[0]}
-            />
+        ) : isAlreadyBaptized && !showFormAnyway ? (
+          <div style={styles.baptizedContainer}>
+            <div style={styles.baptizedBadge}>✨ Already Baptized ✨</div>
+            <p style={styles.baptizedText}>
+              Our records show that you entered yourself as <strong>already baptized</strong> during registration.
+              We celebrate this beautiful milestone in your spiritual walk with Christ!
+            </p>
+            <div style={styles.baptizedQuote}>
+              "For as many of you as were baptized into Christ have put on Christ." — Galatians 3:27
+            </div>
+            <button 
+              type="button"
+              onClick={() => setShowFormAnyway(true)} 
+              style={styles.requestAnywayButton}
+            >
+              Need to request baptism anyway? Click here
+            </button>
           </div>
+        ) : (
+          <>
+            {success && (
+              <div style={styles.successBanner}>
+                🎉 Request submitted successfully! Our ministry team will contact you soon.
+              </div>
+            )}
 
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Preferred Baptism Date (Saturdays or Sundays only)</label>
-            <input
-              name="preferredDate"
-              type="date"
-              required
-              value={formData.preferredDate}
-              onChange={handleChange}
-              style={styles.input}
-              min={new Date().toISOString().split("T")[0]}
-            />
-          </div>
+            {error && <div style={styles.errorBanner}>{error}</div>}
 
-          <button type="submit" disabled={loading || prefilling} style={styles.button}>
-            {prefilling ? "Loading your details..." : loading ? "Submitting..." : "Submit Baptism Request"}
-          </button>
-        </form>
+            <form onSubmit={handleSubmit} style={styles.form}>
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>Full Name</label>
+                <input
+                  name="fullName"
+                  type="text"
+                  required
+                  value={formData.fullName}
+                  onChange={handleChange}
+                  placeholder="Enter your full name"
+                  style={styles.input}
+                />
+              </div>
+
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>Email Address</label>
+                <input
+                  name="email"
+                  type="email"
+                  required
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="Enter your email"
+                  style={styles.input}
+                />
+              </div>
+
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>Phone Number</label>
+                <div style={{ display: "flex" }}>
+                  <div style={{
+                    ...styles.input,
+                    width: "auto",
+                    borderRight: "none",
+                    borderTopRightRadius: 0,
+                    borderBottomRightRadius: 0,
+                    backgroundColor: "#f8fafc",
+                    color: "#64748b",
+                    fontWeight: "600",
+                    display: "flex",
+                    alignItems: "center"
+                  }}>
+                    +254
+                  </div>
+                  <input
+                    name="phone"
+                    type="tel"
+                    required
+                    value={formData.phone}
+                    onChange={handleChange}
+                    placeholder="712345678 or 0712345678"
+                    maxLength={10}
+                    style={{ ...styles.input, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
+                  />
+                </div>
+              </div>
+
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>Date of Birth</label>
+                <input
+                  name="dateOfBirth"
+                  type="date"
+                  required
+                  value={formData.dateOfBirth}
+                  onChange={handleChange}
+                  style={styles.input}
+                  max={new Date(new Date().setFullYear(new Date().getFullYear() - 10)).toISOString().split("T")[0]}
+                />
+              </div>
+
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>Preferred Baptism Date (Saturdays or Sundays only)</label>
+                <input
+                  name="preferredDate"
+                  type="date"
+                  required
+                  value={formData.preferredDate}
+                  onChange={handleChange}
+                  style={styles.input}
+                  min={new Date().toISOString().split("T")[0]}
+                />
+              </div>
+
+              <button type="submit" disabled={loading || prefilling} style={styles.button}>
+                {prefilling ? "Loading your details..." : loading ? "Submitting..." : "Submit Baptism Request"}
+              </button>
+            </form>
+          </>
+        )}
 
         {myRequests.length > 0 && (
           <div style={{ marginTop: "40px", borderTop: "1px solid rgba(0,0,0,0.1)", paddingTop: "20px" }}>
@@ -355,7 +472,9 @@ const styles = {
     padding: "40px",
     boxShadow: "0 20px 40px rgba(0, 0, 0, 0.05)",
     textAlign: "center",
-    border: "1px solid rgba(255, 255, 255, 0.3)"
+    border: "1px solid rgba(255, 255, 255, 0.3)",
+    position: "relative",
+    overflow: "hidden"
   },
   iconWrapper: {
     width: "64px",
@@ -477,6 +596,146 @@ const styles = {
     color: "#0284c7",
     fontWeight: "700",
     textDecoration: "underline"
+  },
+  ribbon: {
+    position: "absolute",
+    top: "22px",
+    right: "-40px",
+    transform: "rotate(45deg)",
+    backgroundColor: "#10b981",
+    color: "#fff",
+    fontSize: "0.72rem",
+    fontWeight: "800",
+    textTransform: "uppercase",
+    padding: "6px 0",
+    width: "140px",
+    textAlign: "center",
+    boxShadow: "0 2px 8px rgba(16, 185, 129, 0.3)",
+    letterSpacing: "0.08em",
+    zIndex: 10
+  },
+  baptizedContainer: {
+    backgroundColor: "rgba(16, 185, 129, 0.05)",
+    border: "1px solid rgba(16, 185, 129, 0.15)",
+    borderRadius: "20px",
+    padding: "30px 20px",
+    marginTop: "10px",
+    marginBottom: "24px",
+    textAlign: "center"
+  },
+  baptizedBadge: {
+    backgroundColor: "#10b981",
+    color: "#fff",
+    display: "inline-block",
+    padding: "6px 16px",
+    borderRadius: "50px",
+    fontSize: "0.82rem",
+    fontWeight: "700",
+    marginBottom: "16px",
+    boxShadow: "0 4px 10px rgba(16, 185, 129, 0.2)",
+    letterSpacing: "0.03em"
+  },
+  baptizedText: {
+    color: "#334155",
+    fontSize: "0.95rem",
+    lineHeight: "1.6",
+    margin: "0 0 16px 0"
+  },
+  baptizedQuote: {
+    fontStyle: "italic",
+    color: "#059669",
+    fontSize: "0.88rem",
+    marginBottom: "20px",
+    lineHeight: "1.4"
+  },
+  requestAnywayButton: {
+    background: "none",
+    border: "none",
+    color: "#0284c7",
+    textDecoration: "underline",
+    fontSize: "0.85rem",
+    fontWeight: "700",
+    cursor: "pointer",
+    padding: "4px 8px",
+    transition: "color 0.2s"
+  },
+  congratsContainer: {
+    background: "linear-gradient(135deg, rgba(240, 253, 250, 0.9) 0%, rgba(204, 251, 241, 0.9) 100%)",
+    border: "2px solid #0d9488",
+    borderRadius: "24px",
+    padding: "36px 24px",
+    marginTop: "10px",
+    marginBottom: "24px",
+    textAlign: "center",
+    boxShadow: "0 10px 25px rgba(13, 148, 136, 0.15)",
+    position: "relative",
+    overflow: "hidden"
+  },
+  congratsRibbon: {
+    backgroundColor: "#0d9488",
+    color: "#fff",
+    display: "inline-block",
+    padding: "8px 24px",
+    fontSize: "0.95rem",
+    fontWeight: "800",
+    textTransform: "uppercase",
+    borderRadius: "6px",
+    marginBottom: "20px",
+    letterSpacing: "0.1em",
+    boxShadow: "0 4px 12px rgba(13, 148, 136, 0.3)",
+    backgroundImage: "linear-gradient(90deg, #0d9488, #14b8a6)"
+  },
+  congratsBadge: {
+    color: "#0f766e",
+    fontSize: "1.35rem",
+    fontWeight: "800",
+    marginBottom: "16px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px"
+  },
+  congratsText: {
+    color: "#1f2937",
+    fontSize: "1rem",
+    lineHeight: "1.6",
+    margin: "0 0 20px 0",
+    fontWeight: "500"
+  },
+  congratsDetails: {
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
+    border: "1px dashed #0d9488",
+    borderRadius: "12px",
+    padding: "10px 16px",
+    display: "inline-block",
+    fontSize: "0.95rem",
+    color: "#0f766e",
+    marginBottom: "20px"
+  },
+  congratsQuote: {
+    fontStyle: "italic",
+    color: "#0f766e",
+    fontSize: "0.9rem",
+    lineHeight: "1.5",
+    marginBottom: "24px",
+    padding: "0 10px",
+    borderLeft: "3px solid #0d9488",
+    textAlign: "center"
+  },
+  congratsDownloadBtn: {
+    backgroundColor: "#0d9488",
+    color: "#fff",
+    border: "none",
+    borderRadius: "12px",
+    padding: "12px 24px",
+    fontSize: "0.95rem",
+    fontWeight: "700",
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+    boxShadow: "0 4px 12px rgba(13, 148, 136, 0.2)",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "8px"
   }
 };
 

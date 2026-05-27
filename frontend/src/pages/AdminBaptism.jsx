@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { jsPDF } from "jspdf";
 
 const styles = {
   page: { fontFamily: "'Poppins', 'Segoe UI', sans-serif", background: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)", minHeight: "100vh", color: "#f8fafc" },
@@ -304,6 +305,93 @@ function AdminBaptism() {
     window.print();
   };
 
+  const downloadCard = (req) => {
+    const doc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    // Outer border (Sky blue accent)
+    doc.setDrawColor(14, 165, 233);
+    doc.setLineWidth(2);
+    doc.rect(10, 10, 277, 190);
+
+    // Inner border (Elegant thin border)
+    doc.setDrawColor(2, 132, 199);
+    doc.setLineWidth(0.5);
+    doc.rect(13, 13, 271, 184);
+
+    // Church Header
+    doc.setFont("times", "bold");
+    doc.setFontSize(30);
+    doc.setTextColor(2, 132, 199);
+    doc.text("Outreach Hope Church", 148.5, 42, { align: "center" });
+
+    // Certificate Title
+    doc.setFont("times", "bold");
+    doc.setFontSize(18);
+    doc.setTextColor(100, 116, 139);
+    doc.text("CERTIFICATE OF BAPTISM", 148.5, 56, { align: "center" });
+
+    // Certifies that...
+    doc.setFont("times", "italic");
+    doc.setFontSize(18);
+    doc.setTextColor(71, 85, 105);
+    doc.text("This certifies that", 148.5, 78, { align: "center" });
+
+    // Full Name
+    doc.setFont("times", "bolditalic");
+    doc.setFontSize(32);
+    doc.setTextColor(15, 23, 42);
+    doc.text(req.fullName, 148.5, 98, { align: "center" });
+
+    // Line under the name
+    doc.setDrawColor(15, 23, 42);
+    doc.setLineWidth(0.5);
+    doc.line(70, 103, 227, 103);
+
+    // Core message
+    doc.setFont("times", "italic");
+    doc.setFontSize(16);
+    doc.setTextColor(71, 85, 105);
+    doc.text("was publicly baptized in the name of the Father, and of the Son, and of the Holy Spirit,", 148.5, 122, { align: "center" });
+    doc.text("declaring their faith in Jesus Christ as Lord and Savior.", 148.5, 132, { align: "center" });
+
+    // Date
+    const formattedDate = new Date(req.preferredDate).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    doc.setFont("times", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(15, 23, 42);
+    doc.text("Date: " + formattedDate, 148.5, 155, { align: "center" });
+
+    // Signatures
+    // Left
+    doc.setDrawColor(148, 163, 184);
+    doc.setLineWidth(0.5);
+    doc.line(40, 178, 110, 178);
+    doc.setFont("times", "normal");
+    doc.setFontSize(12);
+    doc.setTextColor(100, 116, 139);
+    doc.text("Senior Pastor", 75, 184, { align: "center" });
+
+    // Right
+    doc.setDrawColor(148, 163, 184);
+    doc.setLineWidth(0.5);
+    doc.line(187, 178, 257, 178);
+    doc.setFont("times", "normal");
+    doc.setFontSize(12);
+    doc.setTextColor(100, 116, 139);
+    doc.text("Ministry Leader", 222, 184, { align: "center" });
+
+    // Save as PDF
+    doc.save(`Baptism_Card_${req.fullName.replace(/\s+/g, '_')}.pdf`);
+  };
+
   return (
     <div style={styles.page}>
       <GlobalStyle />
@@ -421,6 +509,19 @@ function AdminBaptism() {
                         >
                           {req.status === "Pending" ? "Complete" : "Set Pending"}
                         </button>
+                        {req.status === "Completed" && (
+                          <button
+                            style={{ 
+                              ...styles.actionBtn, 
+                              background: "rgba(16, 185, 129, 0.1)", 
+                              color: "#34d399", 
+                              borderColor: "rgba(16, 185, 129, 0.2)" 
+                            }}
+                            onClick={() => downloadCard(req)}
+                          >
+                            Download Card
+                          </button>
+                        )}
                         <button 
                           style={styles.deleteBtn} 
                           onClick={() => handleDelete(req._id)}

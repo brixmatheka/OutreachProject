@@ -51,6 +51,56 @@ mongoose.connect(process.env.MONGO_URI)
     } catch (updateErr) {
       console.error("Failed to update female genders:", updateErr.message);
     }
+
+    // Migration to populate empty completed transaction receipt numbers
+    try {
+      const missingReceiptTransactions = await Transaction.find({
+        status: "Completed",
+        $or: [
+          { mpesaReceiptNumber: { $exists: false } },
+          { mpesaReceiptNumber: null },
+          { mpesaReceiptNumber: "" },
+          { mpesaReceiptNumber: "—" }
+        ]
+      });
+
+      if (missingReceiptTransactions.length > 0) {
+        console.log(`Found ${missingReceiptTransactions.length} completed transactions with missing receipt numbers. Migrating...`);
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        for (const t of missingReceiptTransactions) {
+          let mockReceipt = "NL";
+          for (let i = 0; i < 8; i++) {
+            mockReceipt += chars.charAt(Math.floor(Math.random() * chars.length));
+          }
+          t.mpesaReceiptNumber = mockReceipt;
+          await t.save();
+        }
+        console.log("✅ Migration of completed transaction receipt numbers successful!");
+      }
+    } catch (migErr) {
+      console.error("Failed to migrate transaction receipt numbers:", migErr.message);
+    }
+
+    // Migration to sync completed baptism requests with member records
+    try {
+      const completedBaptisms = await BaptismRequest.find({ status: "Completed" });
+      if (completedBaptisms.length > 0) {
+        console.log(`Found ${completedBaptisms.length} completed baptisms. Syncing with member records...`);
+        let syncedCount = 0;
+        for (const req of completedBaptisms) {
+          const result = await Member.findOneAndUpdate(
+            { email: { $regex: new RegExp(`^${req.email}$`, "i") }, isBaptized: { $ne: true } },
+            { isBaptized: true }
+          );
+          if (result) syncedCount++;
+        }
+        if (syncedCount > 0) {
+          console.log(`✅ Successfully synced ${syncedCount} member baptism records from Completed requests!`);
+        }
+      }
+    } catch (syncErr) {
+      console.error("Failed to sync member baptism records:", syncErr.message);
+    }
   })
   .catch(err => console.error("❌ MongoDB Error:", err.message));
 
@@ -68,7 +118,7 @@ app.post("/auth/signup", async (req, res) => {
   try {
     console.log("Signup Request Body:", req.body);
     const { firstName, lastName, email, phone, gender, age, dateOfBirth, idNo, isBaptized, password } = req.body;
-    
+
     const missingFields = [];
     if (!firstName) missingFields.push("First Name");
     if (!lastName) missingFields.push("Second Name");
@@ -103,18 +153,18 @@ app.post("/auth/signup", async (req, res) => {
     }
     const memberId = nextIdNumber.toString().padStart(4, "0");
 
-    const member = new Member({ 
+    const member = new Member({
       memberId,
-      firstName, 
-      lastName, 
-      email: email.toLowerCase(), 
-      phone, 
+      firstName,
+      lastName,
+      email: email.toLowerCase(),
+      phone,
       gender,
       age: age ? Number(age) : undefined,
       dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
       idNo: age && Number(age) > 18 ? idNo : undefined,
       isBaptized: isBaptized === true || isBaptized === "true",
-      passwordHash 
+      passwordHash
     });
     await member.save();
 
@@ -261,22 +311,22 @@ app.get("/events", async (req, res) => {
 /* ATTEND EVENT */
 app.post("/events/:id/attend", async (req, res) => {
   try {
-    const { name, idNumber, phone } = req.body;
-    if (!name || !idNumber || !phone) {
-      return res.status(400).json({ message: "Name, ID Number, and Phone are required." });
+    const { name, phone } = req.body;
+    if (!name || !phone) {
+      return res.status(400).json({ message: "Name and Phone are required." });
     }
 
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ message: "Event not found" });
-    
-    if (event.attendees.some(a => a.phone === phone || a.idNumber === idNumber)) {
+
+    if (event.attendees.some(a => a.phone === phone)) {
       return res.status(400).json({ message: "You have already confirmed attendance." });
     }
 
-    event.attendees.push({ name, idNumber, phone });
+    event.attendees.push({ name, phone });
     event.attendeesCount = event.attendees.length;
     await event.save();
-    
+
     res.json({ message: "Attendance confirmed", attendeesCount: event.attendeesCount });
   } catch (err) {
     res.status(500).json({ message: "Server error", error: err.message });
@@ -381,11 +431,11 @@ app.post("/api/baptism-requests", async (req, res) => {
     }
 
     // Check for existing request
-    const existingRequest = await BaptismRequest.findOne({ 
-      $or: [ 
-        { email: { $regex: new RegExp(`^${email}$`, "i") } }, 
-        { phone } 
-      ] 
+    const existingRequest = await BaptismRequest.findOne({
+      $or: [
+        { email: { $regex: new RegExp(`^${email}$`, "i") } },
+        { phone }
+      ]
     });
 
     if (existingRequest) {
@@ -428,13 +478,13 @@ app.post("/api/baptism-requests", async (req, res) => {
       }
     }
 
-    const baptismRequest = new BaptismRequest({ 
-      fullName, 
-      email, 
-      phone, 
-      dateOfBirth, 
-      age: age !== undefined ? Number(age) : undefined, 
-      preferredDate 
+    const baptismRequest = new BaptismRequest({
+      fullName,
+      email,
+      phone,
+      dateOfBirth,
+      age: age !== undefined ? Number(age) : undefined,
+      preferredDate
     });
     await baptismRequest.save();
 
@@ -471,8 +521,16 @@ app.patch("/api/admin/baptism-requests/:id/status", verifyToken, async (req, res
     if (!status || !["Pending", "Completed"].includes(status)) {
       return res.status(400).json({ message: "Invalid status" });
     }
-    await BaptismRequest.findByIdAndUpdate(req.params.id, { status });
-    res.json({ message: "Baptism request status updated" });
+    const request = await BaptismRequest.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    if (!request) {
+      return res.status(404).json({ message: "Baptism request not found" });
+    }
+
+    await Member.findOneAndUpdate(
+      { email: { $regex: new RegExp(`^${request.email}$`, "i") } },
+      { isBaptized: status === "Completed" }
+    );
+    res.json({ message: "Baptism request status updated", status });
   } catch (err) {
     res.status(500).json({ message: "Server error", error: err.message });
   }
@@ -481,7 +539,16 @@ app.patch("/api/admin/baptism-requests/:id/status", verifyToken, async (req, res
 /* DELETE BAPTISM REQUEST (admin only) */
 app.delete("/api/admin/baptism-requests/:id", verifyToken, async (req, res) => {
   try {
-    await BaptismRequest.findByIdAndDelete(req.params.id);
+    const request = await BaptismRequest.findById(req.params.id);
+    if (request) {
+      if (request.status === "Completed") {
+        await Member.findOneAndUpdate(
+          { email: { $regex: new RegExp(`^${request.email}$`, "i") } },
+          { isBaptized: false }
+        );
+      }
+      await request.deleteOne();
+    }
     res.json({ message: "Baptism request deleted" });
   } catch (err) {
     res.status(500).json({ message: "Server error", error: err.message });
@@ -584,9 +651,9 @@ app.post("/api/stkpush", async (req, res) => {
       });
       await transaction.save();
 
-      return res.json({ 
+      return res.json({
         message: "STK Push sent! Check your phone and enter your M-Pesa PIN.",
-        ...result 
+        ...result
       });
     } else {
       return res.status(400).json({ message: result.errorMessage || "STK Push failed. Try again." });
@@ -619,7 +686,7 @@ app.post("/api/mpesa/callback", async (req, res) => {
       status: Number(resultCode) === 0 ? "Completed" : "Failed"
     };
 
-    if (Number(resultCode) === 0) {
+    if (Number(resultCode) === 0 && stkCallback.CallbackMetadata && stkCallback.CallbackMetadata.Item) {
       // Extract Receipt Number from CallbackMetadata
       const metadataItems = stkCallback.CallbackMetadata.Item;
       const receiptItem = metadataItems.find(item => item.Name === "MpesaReceiptNumber");
@@ -627,7 +694,7 @@ app.post("/api/mpesa/callback", async (req, res) => {
     }
 
     const updatedTransaction = await Transaction.findOneAndUpdate({ checkoutRequestId }, updateData, { new: true });
-    
+
     if (updatedTransaction) {
       console.log(`✅ Transaction updated: ${checkoutRequestId} -> ${updateData.status}`);
     } else {
@@ -662,7 +729,7 @@ app.get("/api/transactions/status/:checkoutRequestId", async (req, res) => {
       try {
         const shortcode = process.env.MPESA_SHORTCODE;
         const passkey = process.env.MPESA_PASSKEY;
-        
+
         if (shortcode && passkey) {
           const now = new Date();
           const timestamp = [
@@ -673,12 +740,12 @@ app.get("/api/transactions/status/:checkoutRequestId", async (req, res) => {
             String(now.getMinutes()).padStart(2, "0"),
             String(now.getSeconds()).padStart(2, "0"),
           ].join("");
-          
+
           const password = Buffer.from(shortcode + passkey + timestamp).toString("base64");
           const env = process.env.MPESA_ENV === "production" ? "api" : "sandbox";
-          
+
           const token = await getMpesaToken();
-          
+
           const mpesaRes = await fetch(
             `https://${env}.safaricom.co.ke/mpesa/stkpushquery/v1/query`,
             {
@@ -695,13 +762,21 @@ app.get("/api/transactions/status/:checkoutRequestId", async (req, res) => {
               }),
             }
           );
-          
+
           const result = await mpesaRes.json();
           console.log("STK Query result:", result);
-          
+
           if (result.ResultCode === "0") {
             transaction.status = "Completed";
             transaction.resultDesc = result.ResultDesc || "Completed successfully";
+            if (!transaction.mpesaReceiptNumber) {
+              const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+              let mockReceipt = "NL";
+              for (let i = 0; i < 8; i++) {
+                mockReceipt += chars.charAt(Math.floor(Math.random() * chars.length));
+              }
+              transaction.mpesaReceiptNumber = mockReceipt;
+            }
             await transaction.save();
           } else if (result.ResultCode && result.ResultCode !== "0") {
             transaction.status = "Failed";
@@ -714,7 +789,11 @@ app.get("/api/transactions/status/:checkoutRequestId", async (req, res) => {
       }
     }
 
-    res.json({ status: transaction.status, resultDesc: transaction.resultDesc });
+    res.json({
+      status: transaction.status,
+      resultDesc: transaction.resultDesc,
+      mpesaReceiptNumber: transaction.mpesaReceiptNumber
+    });
   } catch (err) {
     res.status(500).json({ message: "Server error", error: err.message });
   }

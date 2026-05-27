@@ -41,6 +41,7 @@ function MemberSignup() {
       if (value.length > 10) value = value.slice(0, 10);
     } else if (name === "idNo") {
       value = value.replace(/\D/g, "");
+      if (value.length > 14) value = value.slice(0, 14);
     }
 
     setFormData((prev) => {
@@ -161,6 +162,7 @@ function MemberSignup() {
               value={formData.email}
               onChange={handleChange}
               placeholder="john@example.com"
+              autoComplete="off"
               style={styles.input}
             />
           </div>
@@ -255,6 +257,7 @@ function MemberSignup() {
                 value={formData.idNo}
                 onChange={handleChange}
                 placeholder="enter your ID number"
+                maxLength={14}
                 style={styles.input}
               />
             </div>

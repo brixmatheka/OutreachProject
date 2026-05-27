@@ -6,7 +6,7 @@ function OnlineService() {
       name: "Zoom Meeting",
       icon: "https://www.vectorlogo.zone/logos/zoomus/zoomus-icon.svg",
       detail: "ID: 123 456 7890",
-      link: "https://zoom.us/j/yourmeetingid",
+      link: "https://zoom.us/j/343 006 2396",
       color: "#2D8CFF",
       desc: "Join our interactive fellowship and live teaching session."
     },
@@ -44,7 +44,7 @@ function OnlineService() {
     }}>
       {/* Decorative Glows */}
       <div style={{ position: "absolute", top: "15%", left: "5%", width: "300px", height: "300px", background: "radial-gradient(circle, rgba(14, 165, 233, 0.05), transparent 70%)", zIndex: 0 }} />
-      
+
       <div style={{ position: "absolute", top: "30px", right: "30px", zIndex: 10 }}>
         <CloseButton />
       </div>
@@ -103,14 +103,14 @@ function OnlineService() {
         zIndex: 1
       }}>
         {platforms.map((p, idx) => (
-          <a 
+          <a
             key={idx}
             href={p.link}
             target="_blank"
             rel="noopener noreferrer"
             style={{ textDecoration: "none", color: "inherit" }}
           >
-            <div 
+            <div
               style={{
                 backgroundColor: "rgba(2, 6, 23, 0.6)",
                 backdropFilter: "blur(16px)",
@@ -136,13 +136,13 @@ function OnlineService() {
                 e.currentTarget.style.backgroundColor = "rgba(2, 6, 23, 0.6)";
               }}
             >
-              <div style={{ 
-                width: "56px", 
-                height: "56px", 
-                background: `${p.color}15`, 
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "center", 
+              <div style={{
+                width: "56px",
+                height: "56px",
+                background: `${p.color}15`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
                 borderRadius: "16px",
                 padding: "10px"
               }}>

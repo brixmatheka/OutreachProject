@@ -56,6 +56,30 @@ function Chatbox() {
   {
     keywords: ["wear", "dress code", "clothes"],
     answer: "Come as you are! There is no dress code. You'll see everything from jeans and t-shirts to suits and dresses."
+  },
+  {
+    keywords: ["baptism", "baptize", "baptised", "request baptism", "baptising"],
+    answer: "We celebrate holy baptism! You can request water baptism on our Baptism Request page. We hold scheduled baptisms on Saturdays and Sundays for members aged 10 and above."
+  },
+  {
+    keywords: ["sign up", "register", "signup", "create account", "membership", "member"],
+    answer: "You can register as an official member by clicking the 'Sign Up' button on the navigation bar. Registered members can auto-fill requests, track their giving history, download baptism cards, and register for church events easily!"
+  },
+  {
+    keywords: ["mpesa", "m-pesa", "paybill", "till", "stk"],
+    answer: "For convenient online giving, you can initiate a secure M-Pesa STK Push directly on our Give page by entering your phone number and donation category."
+  },
+  {
+    keywords: ["project", "projects", "building", "development", "church project"],
+    answer: "We are actively engaged in building and community development initiatives. Check out our Projects page to see what we're working on and how you can support."
+  },
+  {
+    keywords: ["believe", "beliefs", "doctrine", "vision", "mission"],
+    answer: "Outreach Hope Church is built on the Word of God. We believe in the Trinity, salvation through Jesus Christ, and sharing God's love with the community. You can read our full statement of faith on our About page!"
+  },
+  {
+    keywords: ["volunteer", "serve", "join team", "choir", "usher", "ministry"],
+    answer: "We would love to have you serve with us! You can volunteer in ushering, praise & worship, sound media, children ministry, or hospitality. Speak to any usher or pastor after service to join."
   }
   ]
 

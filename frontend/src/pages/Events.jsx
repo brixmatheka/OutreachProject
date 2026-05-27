@@ -108,7 +108,6 @@ function EventCard({ event, userProfile }) {
   const [confirmed, setConfirmed] = useState(false);
   const [attendeeData, setAttendeeData] = useState({
     name: "",
-    idNumber: "",
     phone: "",
   });
 
@@ -116,13 +115,11 @@ function EventCard({ event, userProfile }) {
     if (userProfile) {
       setAttendeeData({
         name: `${userProfile.firstName || ""} ${userProfile.lastName || ""}`.trim(),
-        idNumber: userProfile.idNo || "",
         phone: userProfile.phone || "",
       });
     } else {
       setAttendeeData({
         name: localStorage.getItem("memberName") ? `${localStorage.getItem("memberName")} ${localStorage.getItem("memberLastName") || ""}`.trim() : "",
-        idNumber: localStorage.getItem("memberIdNo") || "",
         phone: localStorage.getItem("memberPhone") || "",
       });
     }
@@ -225,11 +222,11 @@ function EventCard({ event, userProfile }) {
             {/* Attendance flow */}
             <div style={{ marginTop: "16px" }}>
               {!expanded ? (
-                <button 
+                <button
                   onClick={() => setExpanded(true)}
                   style={{
-                    background: "#f0f9ff", border: "1px solid #bae6fd", color: "#0369a1", 
-                    padding: "6px 14px", borderRadius: "8px", fontSize: "0.8rem", 
+                    background: "#f0f9ff", border: "1px solid #bae6fd", color: "#0369a1",
+                    padding: "6px 14px", borderRadius: "8px", fontSize: "0.8rem",
                     fontWeight: 600, cursor: "pointer", transition: "all 0.2s"
                   }}
                 >
@@ -238,18 +235,14 @@ function EventCard({ event, userProfile }) {
               ) : !confirmed ? (
                 <div style={{ background: "#f8fafc", padding: "16px", borderRadius: "10px", border: "1px solid #e2e8f0", animation: "fadeIn 0.3s" }}>
                   <span style={{ fontSize: "0.85rem", color: "#334155", fontWeight: 600, display: "block", marginBottom: "10px" }}>Confirm Attendance</span>
-                  <input type="text" placeholder="Full Name" value={attendeeData.name} onChange={e => setAttendeeData({...attendeeData, name: e.target.value})} style={{ width: "100%", marginBottom: "8px", padding: "8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.8rem", outline: "none" }} />
-                  <input type="text" placeholder="ID Number" value={attendeeData.idNumber} onChange={e => setAttendeeData({...attendeeData, idNumber: e.target.value})} style={{ width: "100%", marginBottom: "8px", padding: "8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.8rem", outline: "none" }} />
-                  <input type="tel" placeholder="Phone Number" value={attendeeData.phone} onChange={e => setAttendeeData({...attendeeData, phone: e.target.value})} style={{ width: "100%", marginBottom: "12px", padding: "8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.8rem", outline: "none" }} />
-                  
-                  <button 
+                  <input type="text" placeholder="Full Name" value={attendeeData.name} onChange={e => setAttendeeData({ ...attendeeData, name: e.target.value })} style={{ width: "100%", marginBottom: "8px", padding: "8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.8rem", outline: "none" }} />
+
+                  <input type="tel" placeholder="Phone Number" value={attendeeData.phone} onChange={e => setAttendeeData({ ...attendeeData, phone: e.target.value })} style={{ width: "100%", marginBottom: "12px", padding: "8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.8rem", outline: "none" }} />
+
+                  <button
                     onClick={async () => {
-                      if (!attendeeData.name || !attendeeData.idNumber || !attendeeData.phone) {
-                        alert("Please fill in all details to confirm attendance.");
-                        return;
-                      }
-                      if (userProfile && userProfile.idNo && attendeeData.idNumber !== userProfile.idNo) {
-                        alert("Invalid ID number. Please enter the correct ID number associated with your profile.");
+                      if (!attendeeData.name || !attendeeData.phone) {
+                        alert("Please fill in your name and phone number to confirm attendance.");
                         return;
                       }
                       try {
@@ -260,8 +253,8 @@ function EventCard({ event, userProfile }) {
                       }
                     }}
                     style={{
-                      background: "linear-gradient(90deg, #0ea5e9, #0284c7)", color: "#fff", 
-                      border: "none", padding: "8px 16px", borderRadius: "8px", 
+                      background: "linear-gradient(90deg, #0ea5e9, #0284c7)", color: "#fff",
+                      border: "none", padding: "8px 16px", borderRadius: "8px",
                       fontSize: "0.8rem", fontWeight: 600, cursor: "pointer",
                       width: "100%", transition: "transform 0.2s"
                     }}
@@ -270,9 +263,9 @@ function EventCard({ event, userProfile }) {
                   </button>
                 </div>
               ) : (
-                <div style={{ 
-                  background: "#f0fdf4", color: "#15803d", padding: "6px 12px", 
-                  borderRadius: "8px", fontSize: "0.8rem", fontWeight: 600, 
+                <div style={{
+                  background: "#f0fdf4", color: "#15803d", padding: "6px 12px",
+                  borderRadius: "8px", fontSize: "0.8rem", fontWeight: 600,
                   display: "inline-flex", alignItems: "center", gap: "6px",
                   animation: "fadeIn 0.3s", border: "1px solid #bbf7d0"
                 }}>
