@@ -1,4 +1,6 @@
 import express from "express";
+import multer from "multer";
+import fs from "node:fs";
 import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -15,19 +17,104 @@ const __dirname = path.dirname(__filename);
 // Use Google DNS to resolve MongoDB Atlas SRV records
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
+// Global dns.lookup override to ensure network requests (e.g. fetch) respect dns.setServers
+// because Node.js's standard dns.lookup uses the OS resolver which might be broken/timeout.
+const originalLookup = dns.lookup;
+dns.lookup = function (hostname, options, callback) {
+  if (typeof options === "function") {
+    callback = options;
+    options = {};
+  } else if (typeof options === "number") {
+    options = { family: options };
+  } else if (!options) {
+    options = {};
+  }
+
+  const family = options.family || 0;
+
+  const attemptResolve = (host, fam) => {
+    return new Promise((resolve, reject) => {
+      if (fam === 6) {
+        dns.resolve6(host, (err, addresses) => {
+          if (err) reject(err);
+          else resolve({ addresses, family: 6 });
+        });
+      } else if (fam === 4) {
+        dns.resolve4(host, (err, addresses) => {
+          if (err) reject(err);
+          else resolve({ addresses, family: 4 });
+        });
+      } else {
+        dns.resolve4(host, (err4, addresses4) => {
+          if (!err4 && addresses4 && addresses4.length > 0) {
+            resolve({ addresses: addresses4, family: 4 });
+          } else {
+            dns.resolve6(host, (err6, addresses6) => {
+              if (!err6 && addresses6 && addresses6.length > 0) {
+                resolve({ addresses: addresses6, family: 6 });
+              } else {
+                reject(err4 || err6 || new Error("Resolution failed"));
+              }
+            });
+          }
+        });
+      }
+    });
+  };
+
+  attemptResolve(hostname, family)
+    .then(({ addresses, family: resolvedFamily }) => {
+      if (options.all) {
+        const result = addresses.map(addr => ({ address: addr, family: resolvedFamily }));
+        return callback(null, result);
+      } else {
+        return callback(null, addresses[0], resolvedFamily);
+      }
+    })
+    .catch(() => {
+      return originalLookup(hostname, options, callback);
+    });
+};
+
 import Event from "./models/Event.js";
 import PrayerRequest from "./models/PrayerRequest.js";
 import Transaction from "./models/Transaction.js";
 import Project from "./models/Project.js";
 import Member from "./models/Member.js";
 import BaptismRequest from "./models/BaptismRequest.js";
+import Media from "./models/Media.js";
 
 dotenv.config({ path: path.join(__dirname, ".env") });
 
 const app = express();
 
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+// Multer storage
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadsDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, Date.now() + "-" + Math.round(Math.random() * 1e6) + ext);
+  }
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|gif|webp|mp4|mov|avi|webm|mkv/;
+    const ok = allowed.test(path.extname(file.originalname).toLowerCase()) &&
+      allowed.test(file.mimetype.split("/")[1]);
+    if (ok) cb(null, true);
+    else cb(new Error("Only images and videos are allowed."));
+  }
+});
+
 app.use(cors());
 app.use(express.json());
+app.use("/uploads", express.static(uploadsDir));
 
 /* MongoDB Connection */
 console.log("Loaded MONGO_URI:", process.env.MONGO_URI);
@@ -101,6 +188,36 @@ mongoose.connect(process.env.MONGO_URI)
     } catch (syncErr) {
       console.error("Failed to sync member baptism records:", syncErr.message);
     }
+
+    // Migration: Convert single Media items to Folder Media items
+    try {
+      const oldMediaItems = await Media.find({ files: { $exists: false } });
+      if (oldMediaItems.length > 0) {
+        console.log(`Found ${oldMediaItems.length} old media items. Migrating to folder structure...`);
+        for (const item of oldMediaItems) {
+          const title = item.title || item.folder || `Upload - ${item.uploadedAt ? new Date(item.uploadedAt).toLocaleDateString("en-KE") : new Date().toLocaleDateString("en-KE")}`;
+          const files = [{
+            url: item.url,
+            type: item.type || "image"
+          }];
+          
+          await Media.findByIdAndUpdate(item._id, {
+            $set: {
+              title: title,
+              coverUrl: item.url,
+              files: files,
+            },
+            $unset: {
+              url: "",
+              type: ""
+            }
+          });
+        }
+        console.log("✅ Media migration successful!");
+      }
+    } catch (migErr) {
+      console.error("Failed to migrate media items:", migErr.message);
+    }
   })
   .catch(err => console.error("❌ MongoDB Error:", err.message));
 
@@ -131,8 +248,8 @@ app.post("/auth/signup", async (req, res) => {
       return res.status(400).json({ message: `Missing fields: ${missingFields.join(", ")}` });
     }
 
-    if (age && Number(age) < 5) {
-      return res.status(400).json({ message: "You must be at least 5 years of age to register." });
+    if (age && Number(age) < 12) {
+      return res.status(400).json({ message: "You must be at least 12 years of age to register." });
     }
 
     if (age && Number(age) > 18 && !idNo) {
@@ -188,6 +305,9 @@ app.post("/auth/login", async (req, res) => {
     const member = await Member.findOne({ email: email.toLowerCase() });
     if (!member) {
       return res.status(401).json({ message: "Invalid email or password." });
+    }
+    if (member.isDeleted) {
+      return res.status(403).json({ message: "Your account has been deactivated. Please contact administration." });
     }
     const valid = await bcrypt.compare(password, member.passwordHash);
     if (!valid) {
@@ -247,7 +367,7 @@ app.patch("/auth/members/:id/restore", verifyToken, async (req, res) => {
 
 /* ADMIN LOGIN */
 const ADMIN_EMAIL = "admin@ohc.com";
-const ADMIN_PASSWORD = "123456";
+const ADMIN_PASSWORD = "HouseOfBread";
 
 app.post("/admin/login", (req, res) => {
   const { email, password } = req.body;
@@ -263,13 +383,23 @@ app.post("/admin/login", (req, res) => {
 /* TOKEN MIDDLEWARE (Admin) */
 function verifyToken(req, res, next) {
   const token = req.headers.authorization;
-  if (!token) return res.status(403).json({ message: "No token provided" });
+  if (!token) {
+    console.warn(`[verifyToken] ❌ No token provided on ${req.method} ${req.path}`);
+    return res.status(403).json({ message: "No token provided" });
+  }
+
+  console.log(`[verifyToken] Verifying token on ${req.method} ${req.path} | token prefix: ${token.substring(0, 20)}...`);
 
   jwt.verify(token, "secretkey", (err, decoded) => {
-    if (err) return res.status(401).json({ message: "Admin session expired. Please log in again." });
+    if (err) {
+      console.error(`[verifyToken] ❌ JWT error: ${err.name} — ${err.message}`);
+      return res.status(401).json({ message: "Admin session expired. Please log in again.", detail: err.message });
+    }
+    console.log(`[verifyToken] ✅ Token valid, email: ${decoded.email}`);
     next();
   });
 }
+
 
 /* TOKEN MIDDLEWARE (Member) */
 function verifyMemberToken(req, res, next) {
@@ -287,7 +417,7 @@ function verifyMemberToken(req, res, next) {
 app.get("/auth/me", verifyMemberToken, async (req, res) => {
   try {
     const member = await Member.findById(req.member.id).select("-passwordHash");
-    if (!member) return res.status(404).json({ message: "Member not found" });
+    if (!member || member.isDeleted) return res.status(404).json({ message: "Member not found" });
     res.json(member);
   } catch (err) {
     res.status(500).json({ message: "Server error: " + err.message });
@@ -304,14 +434,49 @@ app.post("/events", verifyToken, async (req, res) => {
 
 /* GET EVENTS */
 app.get("/events", async (req, res) => {
-  const events = await Event.find();
-  res.json(events);
+  try {
+    const events = await Event.find();
+
+    // Auto-resolve any existing "N/A" or missing member details on the fly
+    const updatedEvents = await Promise.all(events.map(async (event) => {
+      let needsSave = false;
+      const updatedAttendees = await Promise.all(event.attendees.map(async (attendee) => {
+        if (!attendee.memberId || attendee.memberId === "N/A" || !attendee.idNo || attendee.idNo === "N/A") {
+          // Look up the member in the database by phone number
+          const cleanPhone = attendee.phone ? attendee.phone.trim() : "";
+          const member = await Member.findOne({
+            $or: [
+              { phone: cleanPhone },
+              { phone: "+254" + cleanPhone.replace(/^\+254/, "") },
+              { phone: cleanPhone.replace(/^\+254/, "") }
+            ]
+          });
+          if (member) {
+            attendee.memberId = member.memberId;
+            attendee.idNo = member.idNo;
+            attendee.idNumber = member.idNo;
+            needsSave = true;
+          }
+        }
+        return attendee;
+      }));
+      if (needsSave) {
+        event.attendees = updatedAttendees;
+        await event.save();
+      }
+      return event;
+    }));
+
+    res.json(updatedEvents);
+  } catch (err) {
+    res.status(500).json({ message: "Server error: " + err.message });
+  }
 });
 
 /* ATTEND EVENT */
 app.post("/events/:id/attend", async (req, res) => {
   try {
-    const { name, phone } = req.body;
+    const { name, phone, memberId, idNo } = req.body;
     if (!name || !phone) {
       return res.status(400).json({ message: "Name and Phone are required." });
     }
@@ -323,7 +488,31 @@ app.post("/events/:id/attend", async (req, res) => {
       return res.status(400).json({ message: "You have already confirmed attendance." });
     }
 
-    event.attendees.push({ name, phone });
+    // Try to find the member by phone number in the database
+    let finalMemberId = memberId;
+    let finalIdNo = idNo;
+    const cleanPhone = phone.trim();
+
+    const member = await Member.findOne({
+      $or: [
+        { phone: cleanPhone },
+        { phone: "+254" + cleanPhone.replace(/^\+254/, "") },
+        { phone: cleanPhone.replace(/^\+254/, "") }
+      ]
+    });
+
+    if (member) {
+      finalMemberId = member.memberId;
+      finalIdNo = member.idNo;
+    }
+
+    event.attendees.push({
+      name,
+      phone,
+      memberId: finalMemberId || "N/A",
+      idNo: finalIdNo || "N/A",
+      idNumber: finalIdNo || "N/A"
+    });
     event.attendeesCount = event.attendees.length;
     await event.save();
 
@@ -499,6 +688,60 @@ app.get("/api/my-baptism-requests", verifyMemberToken, async (req, res) => {
   try {
     const requests = await BaptismRequest.find({ email: req.member.email.toLowerCase() }).sort({ createdAt: -1 });
     res.json(requests);
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+/* EDIT MY PENDING BAPTISM REQUEST (member only) */
+app.patch("/api/my-baptism-requests/:id", verifyMemberToken, async (req, res) => {
+  try {
+    const request = await BaptismRequest.findById(req.params.id);
+    if (!request) return res.status(404).json({ message: "Request not found." });
+
+    // Only allow editing own request
+    if (request.email.toLowerCase() !== req.member.email.toLowerCase()) {
+      return res.status(403).json({ message: "You are not authorized to edit this request." });
+    }
+
+    // Only allow editing pending requests
+    if (request.status !== "Pending") {
+      return res.status(400).json({ message: "Only pending requests can be edited." });
+    }
+
+    const { preferredDate, dateOfBirth } = req.body;
+
+    // Validate preferred date
+    if (preferredDate) {
+      const pDate = new Date(preferredDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      pDate.setHours(0, 0, 0, 0);
+      if (pDate < today) {
+        return res.status(400).json({ message: "Preferred baptism date must be in the future (today or later)." });
+      }
+      const day = pDate.getDay();
+      if (day !== 0 && day !== 6) {
+        return res.status(400).json({ message: "Baptism can only be scheduled on a Saturday or a Sunday." });
+      }
+      request.preferredDate = preferredDate;
+    }
+
+    // Validate date of birth
+    if (dateOfBirth) {
+      const birthDate = new Date(dateOfBirth);
+      const tenYearsAgo = new Date();
+      tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
+      tenYearsAgo.setHours(0, 0, 0, 0);
+      birthDate.setHours(0, 0, 0, 0);
+      if (birthDate > tenYearsAgo) {
+        return res.status(400).json({ message: "You must be at least 10 years old to request baptism." });
+      }
+      request.dateOfBirth = dateOfBirth;
+    }
+
+    await request.save();
+    res.json({ message: "Baptism request updated successfully.", request });
   } catch (err) {
     res.status(500).json({ message: "Server error", error: err.message });
   }
@@ -766,7 +1009,15 @@ app.get("/api/transactions/status/:checkoutRequestId", async (req, res) => {
           const result = await mpesaRes.json();
           console.log("STK Query result:", result);
 
-          if (result.ResultCode === "0") {
+          const isProcessing =
+            result.ResultCode === "103" ||
+            result.ResultCode === 103 ||
+            result.ResponseCode === "103" ||
+            result.ResponseCode === 103 ||
+            result.errorCode === "500.002.1001" ||
+            (result.errorMessage && result.errorMessage.toLowerCase().includes("processing"));
+
+          if (result.ResultCode === "0" || result.ResultCode === 0) {
             transaction.status = "Completed";
             transaction.resultDesc = result.ResultDesc || "Completed successfully";
             if (!transaction.mpesaReceiptNumber) {
@@ -778,9 +1029,17 @@ app.get("/api/transactions/status/:checkoutRequestId", async (req, res) => {
               transaction.mpesaReceiptNumber = mockReceipt;
             }
             await transaction.save();
-          } else if (result.ResultCode && result.ResultCode !== "0") {
+          } else if (isProcessing) {
+            // Still processing: do not change status, keep it "Pending" so polling continues
+            console.log(`STK Query: Transaction ${req.params.checkoutRequestId} is still processing...`);
+          } else if (result.ResultCode !== undefined && result.ResultCode !== null) {
             transaction.status = "Failed";
-            transaction.resultDesc = result.ResultDesc || "Transaction failed";
+            transaction.resultDesc = result.ResultDesc || result.ResponseDescription || "Transaction failed";
+            await transaction.save();
+          } else if (result.errorCode) {
+            // Treat other errorCodes (besides processing) as failures
+            transaction.status = "Failed";
+            transaction.resultDesc = result.errorMessage || "Transaction failed";
             await transaction.save();
           }
         }
@@ -796,6 +1055,85 @@ app.get("/api/transactions/status/:checkoutRequestId", async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+/* ─────────────────────────────────────────────────────────────────
+   CHURCH GALLERY
+   ───────────────────────────────────────────────────────────────── */
+
+/* UPLOAD MEDIA (admin only — up to 1000 files per request) */
+app.post("/api/gallery/upload", verifyToken, upload.array("media", 1000), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: "No files uploaded." });
+    }
+    const files = req.files.map((file) => {
+      const isVideo = /mp4|mov|avi|webm|mkv/.test(path.extname(file.originalname).toLowerCase().slice(1));
+      return {
+        url: `/uploads/${file.filename}`,
+        type: isVideo ? "video" : "image"
+      };
+    });
+
+    const folderTitle = req.body.folder ? req.body.folder.trim() : `Upload - ${new Date().toLocaleDateString("en-KE")}`;
+
+    const media = new Media({
+      title: folderTitle,
+      description: req.body.description || "",
+      coverUrl: files[0].url,
+      files: files
+    });
+
+    await media.save();
+    res.status(201).json({ message: "Media uploaded successfully.", item: media });
+  } catch (err) {
+    res.status(500).json({ message: "Server error: " + err.message });
+  }
+});
+
+/* GET ALL GALLERY MEDIA (public — sorted by uploadedAt desc) */
+app.get("/api/gallery", async (req, res) => {
+  try {
+    const items = await Media.find().sort({ uploadedAt: -1 });
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ message: "Server error: " + err.message });
+  }
+});
+
+/* DELETE GALLERY MEDIA (admin only) */
+app.delete("/api/gallery/:id", verifyToken, async (req, res) => {
+  try {
+    console.log(`[Gallery DELETE] Attempting to delete id: ${req.params.id}`);
+    const media = await Media.findById(req.params.id);
+    if (!media) {
+      console.log(`[Gallery DELETE] Media not found: ${req.params.id}`);
+      return res.status(404).json({ message: "Media not found." });
+    }
+    console.log(`[Gallery DELETE] Found folder: "${media.title}", files: ${media.files?.length || 0}`);
+    
+    // Remove all files from disk
+    if (media.files && media.files.length > 0) {
+      media.files.forEach((f) => {
+        const filePath = path.join(__dirname, f.url);
+        if (fs.existsSync(filePath)) {
+          try {
+            fs.unlinkSync(filePath);
+            console.log(`[Gallery DELETE] Deleted file: ${filePath}`);
+          } catch (err) {
+            console.error("Failed to delete file from disk:", filePath, err.message);
+          }
+        }
+      });
+    }
+    
+    await media.deleteOne();
+    console.log(`[Gallery DELETE] ✅ Folder deleted successfully: ${req.params.id}`);
+    res.json({ message: "Media folder deleted successfully." });
+  } catch (err) {
+    console.error(`[Gallery DELETE] ❌ Error: ${err.message}`);
+    res.status(500).json({ message: "Server error: " + err.message });
   }
 });
 

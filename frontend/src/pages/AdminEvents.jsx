@@ -344,7 +344,8 @@ function AdminEvents() {
           <thead>
             <tr>
               <th>Name</th>
-              <th>ID Number</th>
+              <th>Member ID</th>
+              <th>National ID</th>
               <th>Phone</th>
             </tr>
           </thead>
@@ -352,7 +353,8 @@ function AdminEvents() {
             ${event.attendees.map(a => `
               <tr>
                 <td>${a.name}</td>
-                <td>${a.idNumber}</td>
+                <td>${a.memberId || "N/A"}</td>
+                <td>${a.idNo || a.idNumber || "N/A"}</td>
                 <td>${a.phone}</td>
               </tr>
             `).join('')}
@@ -393,16 +395,16 @@ function AdminEvents() {
     });
 
     const message =
-      `⛪ OUTREACH HOPE CHURCH Sunshine\n` +
+      `OUTREACH HOPE CHURCH Sunshine\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
-      `🌟 NEW EVENT ANNOUNCEMENT 🌟\n\n` +
-      `📌 Topic: ${eventData.title.toUpperCase()}\n` +
-      `📅 Date: ${formattedDate}\n` +
-      `📍 Location: OHC Sunshine Sanctuary\n\n` +
-      `📝 About: \n${eventData.description}\n\n` +
+      ` NEW EVENT ANNOUNCEMENT \n\n` +
+      `Topic: ${eventData.title.toUpperCase()}\n` +
+      `Date: ${formattedDate}\n` +
+      `Location: OHC Sunshine Sanctuary\n\n` +
+      `About: \n${eventData.description}\n\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
-      `🔗 View more details here:\n` +
-      `https://outreachhopechurch.org/events\n\n` +
+      `View more details here:\n` +
+      `http://localhost:5173/events\n\n` +
       `#OutreachHopeChurch #ChurchEvents #Sunshine`;
 
     const encodedMessage = encodeURIComponent(message);
@@ -629,7 +631,8 @@ function AdminEvents() {
                               <thead>
                                 <tr>
                                   <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Name</th>
-                                  <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>ID Number</th>
+                                  <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Member ID</th>
+                                  <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>National ID</th>
                                   <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Phone</th>
                                 </tr>
                               </thead>
@@ -637,7 +640,8 @@ function AdminEvents() {
                                 {event.attendees.map((a, i) => (
                                   <tr key={i}>
                                     <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.name}</td>
-                                    <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.idNumber}</td>
+                                    <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.memberId || "N/A"}</td>
+                                    <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.idNo || a.idNumber || "N/A"}</td>
                                     <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.phone}</td>
                                   </tr>
                                 ))}
@@ -717,7 +721,8 @@ function AdminEvents() {
                               <thead>
                                 <tr>
                                   <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Name</th>
-                                  <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>ID Number</th>
+                                  <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Member ID</th>
+                                  <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>National ID</th>
                                   <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Phone</th>
                                 </tr>
                               </thead>
@@ -725,7 +730,8 @@ function AdminEvents() {
                                 {event.attendees.map((a, i) => (
                                   <tr key={i}>
                                     <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.name}</td>
-                                    <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.idNumber}</td>
+                                    <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.memberId || "N/A"}</td>
+                                    <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.idNo || a.idNumber || "N/A"}</td>
                                     <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.phone}</td>
                                   </tr>
                                 ))}

@@ -21,6 +21,9 @@ import MemberLogin from "./pages/MemberLogin"
 import MemberSignup from "./pages/MemberSignup"
 import BaptismRequest from "./pages/BaptismRequest"
 import AdminBaptism from "./pages/AdminBaptism"
+import Bible from "./pages/Bible"
+import Gallery from "./pages/Gallery"
+import AdminGallery from "./pages/AdminGallery"
 
 // Protected Route for Members
 const MemberProtectedRoute = ({ children }) => {
@@ -37,6 +40,7 @@ const MemberProtectedRoute = ({ children }) => {
 function App() {
   const [serverMessage, setServerMessage] = useState("")
   const [memberName, setMemberName] = useState(localStorage.getItem("memberName"))
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     axios.get("http://localhost:5000/")
@@ -47,6 +51,28 @@ function App() {
         console.log(err)
       })
   }, [])
+
+  useEffect(() => {
+    const token = localStorage.getItem("memberToken");
+    if (token) {
+      axios.get("http://localhost:5000/auth/me", {
+        headers: { Authorization: token }
+      })
+        .then((res) => {
+          localStorage.setItem("memberName", res.data.firstName);
+          setMemberName(res.data.firstName);
+        })
+        .catch((err) => {
+          if (err.response?.status === 401 || err.response?.status === 404) {
+            localStorage.removeItem("memberToken");
+            localStorage.removeItem("memberName");
+            localStorage.removeItem("memberLastName");
+            localStorage.removeItem("memberId");
+            setMemberName(null);
+          }
+        });
+    }
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem("memberToken");
@@ -70,22 +96,13 @@ function App() {
           </Link>
         </div>
 
-        <div className="auth-nav">
+        {/* Desktop Auth */}
+        <div className="desktop-auth">
           {memberName ? (
             <div className="user-profile">
-              <span className="welcome-text">
-                Welcome, <strong>{memberName}</strong>
-                <span style={{
-                  marginLeft: '8px',
-                  fontSize: '0.75rem',
-                  backgroundColor: 'rgba(255,255,255,0.2)',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  fontFamily: 'monospace'
-                }}>
-                  {localStorage.getItem("memberId")}
-                </span>
-              </span>
+              <div className="user-info">
+                <span className="welcome-text">Hey <strong>{memberName}</strong></span>
+              </div>
               <button onClick={handleLogout} className="logout-link">Logout</button>
             </div>
           ) : (
@@ -95,19 +112,47 @@ function App() {
             </div>
           )}
         </div>
+
+        <button
+          className="mobile-toggle"
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        >
+          {isMobileMenuOpen ? '✕' : '☰'}
+        </button>
       </div>
 
-      {/* Navigation */}
-      <div className="feature-nav">
-        <Link to="/about"><button>About</button></Link>
-        <Link to="/services"><button>Services</button></Link>
-        <Link to="/events"><button>Events</button></Link>
-        <Link to="/give"><button>Give</button></Link>
-        <Link to="/ministers"><button>Ministers</button></Link>
-        <Link to="/prayerRequests"><button>PrayerRequests</button></Link>
-        <Link to="/baptism"><button>Baptism</button></Link>
-        <Link to="/chatbot"><button>Chatbot</button></Link>
-        <Link to="/online-service"><button>Online Service</button></Link>
+      <div className={`nav-container ${isMobileMenuOpen ? 'open' : ''}`}>
+        {/* Mobile Auth */}
+        <div className="mobile-auth">
+          {memberName ? (
+            <div className="user-profile mobile-profile">
+              <div className="user-info">
+                <span className="welcome-text">Hey <strong>{memberName}</strong></span>
+              </div>
+              <button onClick={handleLogout} className="logout-link">Logout</button>
+            </div>
+          ) : (
+            <div className="auth-buttons mobile-auth-buttons">
+              <Link to="/login" className="login-btn" onClick={() => setIsMobileMenuOpen(false)}>Login</Link>
+              <Link to="/signup" className="signup-btn" onClick={() => setIsMobileMenuOpen(false)}>Sign Up</Link>
+            </div>
+          )}
+        </div>
+
+        {/* Navigation */}
+        <div className="feature-nav">
+          <Link to="/about" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>About</Link>
+          <Link to="/services" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Services</Link>
+          <Link to="/ministers" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Ministers</Link>
+          <Link to="/events" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Events</Link>
+          <Link to="/gallery" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Gallery</Link>
+          <Link to="/give" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Give</Link>
+          <Link to="/bible" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Bible</Link>
+          <Link to="/prayerRequests" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Prayer Requests</Link>
+          <Link to="/baptism" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Baptism</Link>
+          <Link to="/chatbot" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Chatbot</Link>
+          <Link to="/online-service" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Online Service</Link>
+        </div>
       </div>
     </header>
   );
@@ -124,6 +169,10 @@ function App() {
               <div className="hero-content">
                 <h1>OUTREACH HOPE CONNECT</h1>
                 <p className="hero-subtitle">"Where the Word is Preached and Love is Experienced"</p>
+                <div className="hero-cta">
+                  <Link to="/about" className="hero-btn-primary">WHO ARE WE</Link>
+                  <Link to="/give" className="hero-btn-secondary">Give Online</Link>
+                </div>
               </div>
 
               <div className="feature-content">
@@ -144,7 +193,28 @@ function App() {
                   </ul>
                   <div className="feature-footer">
                     <span className="feature-pill">Family church</span>
-                    <span className="feature-pill feature-pill-soft">Outreach focused</span>
+                    <span className="feature-pill">Outreach focused</span>
+                  </div>
+                </div>
+
+                <div className="feature-card">
+                  <div className="feature-header">
+                    <div className="feature-icon">🙏</div>
+                    <div>
+                      <div className="feature-title">Join a Service</div>
+                      <div className="feature-description">
+                        Experience the presence of God with us
+                      </div>
+                    </div>
+                  </div>
+                  <ul className="feature-list">
+                    <li>Sunday Worship: Experience powerful word and vibrant worship.</li>
+                    <li>Mid-Week Services: Deep dive into scripture and prayer.</li>
+                    <li>Online Service: Join from anywhere in the world.</li>
+                  </ul>
+                  <div className="feature-footer">
+                    <span className="feature-pill">In-Person</span>
+                    <span className="feature-pill">Live Stream</span>
                   </div>
                 </div>
               </div>
@@ -152,13 +222,15 @@ function App() {
           </main>
 
           <footer className="app-footer">
-            <p>© {new Date().getFullYear()} Outreach Hope Church Sunshine</p>
+            <p>© {new Date().getFullYear()} Outreach Hope Church Sunshine | House of Bread</p>
           </footer>
         </div>
       } />
 
       {/* Public Pages */}
       <Route path="/about" element={<About />} />
+      <Route path="/bible" element={<Bible />} />
+      <Route path="/gallery" element={<Gallery />} />
       <Route path="/login" element={<MemberLogin />} />
       <Route path="/signup" element={<MemberSignup />} />
       <Route path="/admin-login" element={<AdminLogin />} />
@@ -181,6 +253,7 @@ function App() {
       <Route path="/admin/transactions" element={<AdminTransactions />} />
       <Route path="/admin/members" element={<AdminMembers />} />
       <Route path="/admin/baptism" element={<AdminBaptism />} />
+      <Route path="/admin/gallery" element={<AdminGallery />} />
     </Routes>
   )
 }

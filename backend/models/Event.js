@@ -28,6 +28,8 @@ const eventSchema = new mongoose.Schema({
   attendees: [
     {
       name: String,
+      memberId: String,
+      idNo: String,
       idNumber: String,
       phone: String,
     }

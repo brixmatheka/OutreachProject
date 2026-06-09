@@ -88,6 +88,7 @@ function AdminTransactions() {
   const [specificDate, setSpecificDate] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const token = localStorage.getItem("token");
   const navigate = useNavigate();
 
@@ -140,7 +141,18 @@ function AdminTransactions() {
   const finalFilteredTransactions = transactions.filter(t => {
     const matchesCategory = selectedCategory === "All" || t.category === selectedCategory;
     const matchesPeriod = isWithinPeriod(t.createdAt, selectedPeriod);
-    return matchesCategory && matchesPeriod;
+
+    // Search filter: match against receipt number, member ID, or name
+    let matchesSearch = true;
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const receipt = (t.mpesaReceiptNumber || "").toLowerCase();
+      const memberId = (t.memberId || "").toLowerCase();
+      const fullName = `${t.firstName || ""} ${t.lastName || ""}`.toLowerCase();
+      matchesSearch = receipt.includes(q) || memberId.includes(q) || fullName.includes(q);
+    }
+
+    return matchesCategory && matchesPeriod && matchesSearch;
   });
 
   const fetchTransactions = async () => {
@@ -318,6 +330,74 @@ function AdminTransactions() {
             <span style={styles.summaryNumber("#0369a1")}>{finalFilteredTransactions.length}</span>
             <span style={styles.statLabel || styles.summaryLabel}>{selectedCategory} Records ({displayPeriod})</span>
           </div>
+        </div>
+
+        {/* Search Bar */}
+        <div className="no-print" style={{
+          marginBottom: "24px",
+          position: "relative",
+          maxWidth: "480px",
+        }}>
+          <div style={{
+            position: "absolute",
+            left: "14px",
+            top: "50%",
+            transform: "translateY(-50%)",
+            color: "#64748b",
+            fontSize: "1rem",
+            pointerEvents: "none",
+          }}>
+            🔍
+          </div>
+          <input
+            type="text"
+            placeholder="Search by receipt number, member ID, or name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "12px 14px 12px 42px",
+              borderRadius: "12px",
+              border: "1.5px solid rgba(255,255,255,0.1)",
+              background: "rgba(30, 41, 59, 0.7)",
+              backdropFilter: "blur(10px)",
+              fontSize: "0.88rem",
+              fontWeight: 500,
+              color: "#e2e8f0",
+              outline: "none",
+              transition: "all 0.2s",
+              boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = "#0ea5e9";
+              e.target.style.boxShadow = "0 2px 16px rgba(14,165,233,0.2)";
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = "rgba(255,255,255,0.1)";
+              e.target.style.boxShadow = "0 2px 12px rgba(0,0,0,0.15)";
+            }}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              style={{
+                position: "absolute",
+                right: "12px",
+                top: "50%",
+                transform: "translateY(-50%)",
+                background: "rgba(255,255,255,0.08)",
+                border: "none",
+                color: "#94a3b8",
+                cursor: "pointer",
+                borderRadius: "6px",
+                padding: "2px 8px",
+                fontSize: "0.78rem",
+                fontWeight: 600,
+              }}
+            >
+              ✕
+            </button>
+          )}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "15px", marginBottom: "24px" }} className="no-print">

@@ -98,28 +98,12 @@ const styles = {
     background: "rgba(15, 23, 42, 0.6)",
     color: "#fff",
     border: "1.5px solid rgba(255,255,255,0.1)",
-    borderRadius: "8px 0 0 8px",
-    padding: "8.5px 14px",
+    borderRadius: "8px",
+    padding: "8.5px 14px 8.5px 38px",
     fontSize: "0.85rem",
     outline: "none",
-    width: "220px",
+    width: "300px",
     transition: "all 0.2s",
-    borderRight: "none",
-  },
-  searchBtn: {
-    background: "linear-gradient(90deg, #0369a1, #0ea5e9)",
-    color: "#fff",
-    border: "none",
-    borderRadius: "0 8px 8px 0",
-    padding: "8.5px 18px",
-    cursor: "pointer",
-    fontSize: "0.85rem",
-    fontWeight: 600,
-    boxShadow: "0 4px 12px rgba(14,165,233,0.2)",
-    transition: "all 0.2s",
-    display: "flex",
-    alignItems: "center",
-    gap: "6px",
   },
   
   /* Tabs system */
@@ -204,7 +188,6 @@ function AdminMembers() {
   const [minAge, setMinAge] = useState("");
   const [maxAge, setMaxAge] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [appliedSearch, setAppliedSearch] = useState("");
 
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
@@ -288,10 +271,10 @@ function AdminMembers() {
         if (!m.age || m.age > Number(maxAge)) matchesAge = false;
       }
 
-      // Search filter
+      // Search filter (real-time)
       let matchesSearch = true;
-      if (appliedSearch) {
-        const q = appliedSearch.toLowerCase();
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
         const fullName = `${m.firstName} ${m.lastName}`.toLowerCase();
         const email = (m.email || "").toLowerCase();
         const phone = (m.phone || "").toLowerCase();
@@ -464,7 +447,16 @@ function AdminMembers() {
         <div style={styles.filterBar} className="no-print">
           <div style={styles.filterGroup}>
             <label style={styles.filterLabel}>Search Members</label>
-            <div style={{ display: "flex", alignItems: "center" }}>
+            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+              <span style={{
+                position: "absolute",
+                left: "12px",
+                top: "50%",
+                transform: "translateY(-50%)",
+                fontSize: "0.9rem",
+                pointerEvents: "none",
+                color: "#64748b",
+              }}>🔍</span>
               <input
                 type="text"
                 className="filter-in"
@@ -472,19 +464,28 @@ function AdminMembers() {
                 style={styles.filterSearchInput}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    setAppliedSearch(searchQuery);
-                  }
-                }}
               />
-              <button
-                style={styles.searchBtn}
-                onClick={() => setAppliedSearch(searchQuery)}
-                className="action-btn"
-              >
-                🔍 Search
-              </button>
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  style={{
+                    position: "absolute",
+                    right: "10px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "rgba(255,255,255,0.08)",
+                    border: "none",
+                    color: "#94a3b8",
+                    cursor: "pointer",
+                    borderRadius: "6px",
+                    padding: "2px 8px",
+                    fontSize: "0.78rem",
+                    fontWeight: 600,
+                  }}
+                >
+                  ✕
+                </button>
+              )}
             </div>
           </div>
 
@@ -545,7 +546,6 @@ function AdminMembers() {
               setMinAge("");
               setMaxAge("");
               setSearchQuery("");
-              setAppliedSearch("");
             }}
           >
             Reset Filters

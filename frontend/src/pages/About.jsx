@@ -355,7 +355,7 @@ function About() {
                 letterSpacing: "2px",
                 textTransform: "uppercase"
               }}>
-                ✝️ To God be the glory
+                ✝️ To God be the glory!
               </div>
             </div>
 

@@ -109,21 +109,38 @@ function EventCard({ event, userProfile }) {
   const [attendeeData, setAttendeeData] = useState({
     name: "",
     phone: "",
+    memberId: "",
+    idNo: "",
   });
 
   useEffect(() => {
+    let phone = "";
     if (userProfile) {
+      const name = `${userProfile.firstName || ""} ${userProfile.lastName || ""}`.trim();
+      phone = userProfile.phone || "";
       setAttendeeData({
-        name: `${userProfile.firstName || ""} ${userProfile.lastName || ""}`.trim(),
-        phone: userProfile.phone || "",
+        name,
+        phone,
+        memberId: userProfile.memberId || "",
+        idNo: userProfile.idNo || ""
       });
     } else {
+      const name = localStorage.getItem("memberName") ? `${localStorage.getItem("memberName")} ${localStorage.getItem("memberLastName") || ""}`.trim() : "";
+      phone = localStorage.getItem("memberPhone") || "";
       setAttendeeData({
-        name: localStorage.getItem("memberName") ? `${localStorage.getItem("memberName")} ${localStorage.getItem("memberLastName") || ""}`.trim() : "",
-        phone: localStorage.getItem("memberPhone") || "",
+        name,
+        phone,
+        memberId: localStorage.getItem("memberId") || "",
+        idNo: localStorage.getItem("memberIdNo") || ""
       });
     }
-  }, [userProfile]);
+
+    // Check if user already confirmed attendance for this event
+    if (phone && event.attendees && event.attendees.some(a => a.phone === phone)) {
+      setConfirmed(true);
+      setExpanded(true);
+    }
+  }, [userProfile, event.attendees]);
 
   const rawDate = event.date ? new Date(event.date) : null;
   const formatted = rawDate && !isNaN(rawDate)

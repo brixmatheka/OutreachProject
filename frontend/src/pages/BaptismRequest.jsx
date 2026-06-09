@@ -13,7 +13,8 @@ function BaptismRequest() {
   });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [serverError, setServerError] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [prefilling, setPrefilling] = useState(false);
   const [myRequests, setMyRequests] = useState([]);
@@ -48,11 +49,20 @@ function BaptismRequest() {
         if (member.dateOfBirth) {
           dob = new Date(member.dateOfBirth).toISOString().split("T")[0];
         }
+        let cleanPhone = member.phone || "";
+        if (cleanPhone.startsWith("+254")) {
+          cleanPhone = cleanPhone.slice(4);
+        } else if (cleanPhone.startsWith("254")) {
+          cleanPhone = cleanPhone.slice(3);
+        } else if (cleanPhone.startsWith("0")) {
+          cleanPhone = cleanPhone.slice(1);
+        }
+
         setFormData((prev) => ({
           ...prev,
           fullName: `${member.firstName || ""} ${member.lastName || ""}`.trim(),
           email: member.email || "",
-          phone: member.phone || "",
+          phone: cleanPhone,
           dateOfBirth: dob,
         }));
         setIsLoggedIn(true);
@@ -74,12 +84,19 @@ function BaptismRequest() {
     } else if (name === "phone") {
       value = value.replace(/\D/g, "");
       if (value.length > 10) value = value.slice(0, 10);
+    } else if (name === "email") {
+      value = value.toLowerCase();
+    }
+    // Clear the field's error when the user starts correcting it
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => ({ ...prev, [name]: "" }));
     }
     setFormData({ ...formData, [name]: value });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const errors = {};
 
     const dob = new Date(formData.dateOfBirth);
     const tenYearsAgo = new Date();
@@ -88,13 +105,11 @@ function BaptismRequest() {
     dob.setHours(0, 0, 0, 0);
 
     if (dob > tenYearsAgo) {
-      setError("You must be at least 10 years old to request baptism.");
-      return;
+      errors.dateOfBirth = "You must be at least 10 years old to request baptism.";
     }
 
     if (formData.phone && (formData.phone.length < 9 || formData.phone.length > 10)) {
-      setError("Please enter a valid 9 or 10 digit phone number.");
-      return;
+      errors.phone = "Please enter a valid 9 or 10 digit phone number.";
     }
 
     const pDate = new Date(formData.preferredDate);
@@ -102,25 +117,31 @@ function BaptismRequest() {
     today.setHours(0, 0, 0, 0);
     pDate.setHours(0, 0, 0, 0);
 
-    if (pDate < today) {
-      setError("Preferred baptism date must be in the future (today or later).");
-      return;
+    if (formData.preferredDate && pDate < today) {
+      errors.preferredDate = "Preferred baptism date must be in the future (today or later).";
     }
 
-    const day = pDate.getDay(); // 0 is Sunday, 6 is Saturday
-    if (day !== 0 && day !== 6) {
-      setError("Baptism can only be scheduled on a Saturday or a Sunday.");
+    if (formData.preferredDate) {
+      const day = pDate.getDay();
+      if (day !== 0 && day !== 6) {
+        errors.preferredDate = "Baptism can only be scheduled on a Saturday or a Sunday.";
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
       return;
     }
 
     setLoading(true);
-    setError("");
+    setFieldErrors({});
+    setServerError("");
     setSuccess(false);
 
     try {
       const payload = { ...formData };
       if (payload.phone) {
-        payload.phone = "+254" + payload.phone;
+        payload.phone = "" + payload.phone;
       }
       await axios.post("http://localhost:5000/api/baptism-requests", payload);
       setSuccess(true);
@@ -130,7 +151,19 @@ function BaptismRequest() {
       if (token) fetchMyRequests(token);
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.message || "Something went wrong. Please try again.");
+      // Try to map server error to a field
+      const msg = err.response?.data?.message || "Something went wrong. Please try again.";
+      if (msg.toLowerCase().includes("email") || msg.toLowerCase().includes("already have")) {
+        setFieldErrors({ email: msg });
+      } else if (msg.toLowerCase().includes("phone")) {
+        setFieldErrors({ phone: msg });
+      } else if (msg.toLowerCase().includes("date") || msg.toLowerCase().includes("saturday") || msg.toLowerCase().includes("sunday")) {
+        setFieldErrors({ preferredDate: msg });
+      } else if (msg.toLowerCase().includes("10 years")) {
+        setFieldErrors({ dateOfBirth: msg });
+      } else {
+        setServerError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -260,7 +293,7 @@ function BaptismRequest() {
             </div>
             <div style={styles.congratsBadge}>💧 Confirmed Baptized 💧</div>
             <p style={styles.congratsText}>
-              We rejoice with you! Your baptism request has been officially confirmed and completed by our church administration. 
+              We rejoice with you! Your baptism request has been officially confirmed and completed by our church administration.
               May God bless you abundantly as you walk in this newness of life!
             </p>
             {completedRequest && (
@@ -272,9 +305,9 @@ function BaptismRequest() {
               "Therefore, if anyone is in Christ, he is a new creation; old things have passed away; behold, all things have become new." — 2 Corinthians 5:17
             </div>
             {completedRequest && (
-              <button 
+              <button
                 type="button"
-                onClick={() => downloadCard(completedRequest)} 
+                onClick={() => downloadCard(completedRequest)}
                 style={styles.congratsDownloadBtn}
               >
                 🎓 Download Baptism Certificate
@@ -291,9 +324,9 @@ function BaptismRequest() {
             <div style={styles.baptizedQuote}>
               "For as many of you as were baptized into Christ have put on Christ." — Galatians 3:27
             </div>
-            <button 
+            <button
               type="button"
-              onClick={() => setShowFormAnyway(true)} 
+              onClick={() => setShowFormAnyway(true)}
               style={styles.requestAnywayButton}
             >
               Need to request baptism anyway? Click here
@@ -307,7 +340,7 @@ function BaptismRequest() {
               </div>
             )}
 
-            {error && <div style={styles.errorBanner}>{error}</div>}
+            {serverError && <div style={styles.errorBanner}>{serverError}</div>}
 
             <form onSubmit={handleSubmit} style={styles.form}>
               <div style={styles.inputGroup}>
@@ -319,8 +352,9 @@ function BaptismRequest() {
                   value={formData.fullName}
                   onChange={handleChange}
                   placeholder="Enter your full name"
-                  style={styles.input}
+                  style={{ ...styles.input, ...(fieldErrors.fullName ? styles.inputError : {}) }}
                 />
+                {fieldErrors.fullName && <p style={styles.fieldErrorText}>{fieldErrors.fullName}</p>}
               </div>
 
               <div style={styles.inputGroup}>
@@ -331,9 +365,11 @@ function BaptismRequest() {
                   required
                   value={formData.email}
                   onChange={handleChange}
-                  placeholder="Enter your email"
-                  style={styles.input}
+                  placeholder="Enter your email (lowercase only)"
+                  style={{ ...styles.input, ...(fieldErrors.email ? styles.inputError : {}) }}
+                  autoComplete="off"
                 />
+                {fieldErrors.email && <p style={styles.fieldErrorText}>{fieldErrors.email}</p>}
               </div>
 
               <div style={styles.inputGroup}>
@@ -359,11 +395,12 @@ function BaptismRequest() {
                     required
                     value={formData.phone}
                     onChange={handleChange}
-                    placeholder="712345678 or 0712345678"
+                    placeholder="Enter your number excluding 0"
                     maxLength={10}
-                    style={{ ...styles.input, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
+                    style={{ ...styles.input, borderTopLeftRadius: 0, borderBottomLeftRadius: 0, ...(fieldErrors.phone ? styles.inputError : {}) }}
                   />
                 </div>
+                {fieldErrors.phone && <p style={styles.fieldErrorText}>{fieldErrors.phone}</p>}
               </div>
 
               <div style={styles.inputGroup}>
@@ -374,9 +411,10 @@ function BaptismRequest() {
                   required
                   value={formData.dateOfBirth}
                   onChange={handleChange}
-                  style={styles.input}
+                  style={{ ...styles.input, ...(fieldErrors.dateOfBirth ? styles.inputError : {}) }}
                   max={new Date(new Date().setFullYear(new Date().getFullYear() - 10)).toISOString().split("T")[0]}
                 />
+                {fieldErrors.dateOfBirth && <p style={styles.fieldErrorText}>{fieldErrors.dateOfBirth}</p>}
               </div>
 
               <div style={styles.inputGroup}>
@@ -387,9 +425,10 @@ function BaptismRequest() {
                   required
                   value={formData.preferredDate}
                   onChange={handleChange}
-                  style={styles.input}
+                  style={{ ...styles.input, ...(fieldErrors.preferredDate ? styles.inputError : {}) }}
                   min={new Date().toISOString().split("T")[0]}
                 />
+                {fieldErrors.preferredDate && <p style={styles.fieldErrorText}>{fieldErrors.preferredDate}</p>}
               </div>
 
               <button type="submit" disabled={loading || prefilling} style={styles.button}>
@@ -510,6 +549,20 @@ const styles = {
     marginBottom: "20px",
     border: "1px solid #dcfce7",
     fontWeight: "500"
+  },
+  inputError: {
+    borderColor: "#ef4444",
+    backgroundColor: "#fff8f8",
+    boxShadow: "0 0 0 3px rgba(239,68,68,0.12)",
+  },
+  fieldErrorText: {
+    margin: "5px 0 0",
+    fontSize: "0.8rem",
+    color: "#b91c1c",
+    fontWeight: "500",
+    display: "flex",
+    alignItems: "center",
+    gap: "4px",
   },
   errorBanner: {
     backgroundColor: "#fef2f2",

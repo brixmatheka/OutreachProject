@@ -730,6 +730,19 @@ function AdminDashboard() {
             </span>
           </div>
 
+          {/* Gallery Card */}
+          <div className="stat-card" onClick={() => window.location.href = "/admin/gallery"} style={{
+            ...styles.glassCard, cursor: "pointer", marginBottom: 0, display: "flex", flexDirection: "column", gap: "14px",
+            borderLeft: "5px solid #e879f9", transition: "transform 0.2s, box-shadow 0.2s",
+          }}>
+            <div style={{ fontSize: "2.2rem" }}>🖼</div>
+            <h4 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#e879f9" }}>Gallery</h4>
+            <p style={{ margin: 0, fontSize: "0.85rem", color: "#94a3b8", lineHeight: 1.5 }}>
+              Upload and manage church photos &amp; videos.
+            </p>
+            <span style={{ fontSize: "0.8rem", color: "#e879f9", fontWeight: 600 }}>Manage Gallery → Open</span>
+          </div>
+
         </div>
 
       </main>

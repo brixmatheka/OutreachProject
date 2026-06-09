@@ -18,6 +18,7 @@ function MemberSignup() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const navigate = useNavigate();
 
   const calculateAge = (dobString) => {
@@ -38,10 +39,16 @@ function MemberSignup() {
       value = value.replace(/[^a-zA-Z\s]/g, "");
     } else if (name === "phone") {
       value = value.replace(/\D/g, "");
-      if (value.length > 10) value = value.slice(0, 10);
+      // Enforce Kenyan standard: first digit must be 7 or 1
+      if (value.length > 0 && value[0] !== "7" && value[0] !== "1") {
+        value = value.slice(1);
+      }
+      if (value.length > 9) value = value.slice(0, 9);
     } else if (name === "idNo") {
       value = value.replace(/\D/g, "");
       if (value.length > 14) value = value.slice(0, 14);
+    } else if (name === "email") {
+      value = value.toLowerCase();
     }
 
     setFormData((prev) => {
@@ -58,19 +65,23 @@ function MemberSignup() {
 
   const handleSignup = async (e) => {
     e.preventDefault();
+    if (!agreed) {
+      setError("You must agree to the Terms and Conditions to sign up.");
+      return;
+    }
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match.");
       return;
     }
 
     const calculatedAge = calculateAge(formData.dateOfBirth);
-    if (calculatedAge < 5) {
-      setError("Date of birth must be at least 5 years ago (minimum age of 5).");
+    if (calculatedAge < 12) {
+      setError("Date of birth must be at least 12 years ago (minimum age of 12).");
       return;
     }
 
-    if (formData.phone && (formData.phone.length < 9 || formData.phone.length > 10)) {
-      setError("Please enter a valid 9 or 10 digit phone number.");
+    if (formData.phone && (formData.phone.length !== 9 || !/^[71]/.test(formData.phone))) {
+      setError("Phone number must be 9 digits starting with 7 or 1 (e.g. 712345678).");
       return;
     }
 
@@ -190,8 +201,8 @@ function MemberSignup() {
                 required
                 value={formData.phone}
                 onChange={handleChange}
-                placeholder="712345678 or 0712345678"
-                maxLength={10}
+                placeholder="7XXXXXXXX or 1XXXXXXXX"
+                maxLength={9}
                 style={{ ...styles.input, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
               />
             </div>
@@ -243,7 +254,7 @@ function MemberSignup() {
               value={formData.dateOfBirth}
               onChange={handleChange}
               style={styles.input}
-              max={new Date(new Date().setFullYear(new Date().getFullYear() - 5)).toISOString().split("T")[0]}
+              max={new Date(new Date().setFullYear(new Date().getFullYear() - 12)).toISOString().split("T")[0]}
             />
           </div>
 
@@ -296,6 +307,29 @@ function MemberSignup() {
               placeholder="confirm your password"
               style={styles.input}
             />
+          </div>
+
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", textAlign: "left", margin: "8px 0" }}>
+            <input
+              type="checkbox"
+              id="termsConsent"
+              checked={agreed}
+              onChange={(e) => {
+                setAgreed(e.target.checked);
+                if (error) setError("");
+              }}
+              style={{
+                marginTop: "3px",
+                width: "16px",
+                height: "16px",
+                cursor: "pointer",
+                borderRadius: "4px",
+                accentColor: "#0ea5e9"
+              }}
+            />
+            <label htmlFor="termsConsent" style={{ fontSize: "0.85rem", color: "#475569", cursor: "pointer", fontWeight: "500", lineHeight: "1.4" }}>
+              I agree to the <span style={{ color: "#0ea5e9", fontWeight: "600" }}>Terms &amp; Conditions</span> and Privacy Policy of Outreach Hope Church.
+            </label>
           </div>
 
           <button type="submit" disabled={loading} style={styles.button}>

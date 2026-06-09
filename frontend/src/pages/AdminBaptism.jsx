@@ -88,21 +88,30 @@ function AdminBaptism() {
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
-  const token = localStorage.getItem("token");
+
+  // Always read token fresh — never store stale value at mount time
+  const getToken = () => localStorage.getItem("adminToken") || localStorage.getItem("token");
 
   useEffect(() => {
-    if (!token) navigate("/admin-login");
-    else fetchRequests();
-  }, [token]);
+    if (!getToken()) {
+      navigate("/admin-login");
+    } else {
+      fetchRequests();
+    }
+  }, []);
 
   const fetchRequests = async () => {
     try {
       const res = await axios.get("http://localhost:5000/api/admin/baptism-requests", {
-        headers: { Authorization: token }
+        headers: { Authorization: getToken() }
       });
       setRequests(res.data);
     } catch (err) {
-      setError("Failed to fetch baptism requests.");
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        navigate("/admin-login");
+      } else {
+        setError("Failed to fetch baptism requests.");
+      }
       console.error(err);
     } finally {
       setLoading(false);
@@ -113,24 +122,40 @@ function AdminBaptism() {
     const nextStatus = currentStatus === "Pending" ? "Completed" : "Pending";
     try {
       await axios.patch(`http://localhost:5000/api/admin/baptism-requests/${id}/status`, { status: nextStatus }, {
-        headers: { Authorization: token }
+        headers: { Authorization: getToken() }
       });
       fetchRequests();
     } catch (err) {
-      alert("Error updating status.");
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        alert("Session expired. Please log in again.");
+        navigate("/admin-login");
+      } else {
+        alert("Error updating status: " + (err.response?.data?.message || err.message));
+      }
       console.error(err);
     }
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this baptism request?")) return;
+    const token = getToken();
+    if (!token) {
+      alert("Not authenticated. Please log in again.");
+      navigate("/admin-login");
+      return;
+    }
     try {
       await axios.delete(`http://localhost:5000/api/admin/baptism-requests/${id}`, {
         headers: { Authorization: token }
       });
       fetchRequests();
     } catch (err) {
-      alert("Error deleting request.");
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        alert("Session expired. Please log in again.");
+        navigate("/admin-login");
+      } else {
+        alert("Error deleting request: " + (err.response?.data?.message || err.message));
+      }
       console.error(err);
     }
   };
