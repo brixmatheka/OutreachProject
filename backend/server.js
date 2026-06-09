@@ -89,7 +89,9 @@ dotenv.config({ path: path.join(__dirname, ".env") });
 const app = express();
 
 // Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, "uploads");
+const uploadsDir = process.env.UPLOAD_DIR
+  ? path.resolve(process.env.UPLOAD_DIR)
+  : path.join(__dirname, "uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 // Multer storage
@@ -112,7 +114,20 @@ const upload = multer({
   }
 });
 
-app.use(cors());
+const allowedOrigins = (process.env.CLIENT_ORIGIN || "http://localhost:5173")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error("Not allowed by CORS"));
+  }
+}));
 app.use(express.json());
 app.use("/uploads", express.static(uploadsDir));
 
@@ -200,7 +215,7 @@ mongoose.connect(process.env.MONGO_URI)
             url: item.url,
             type: item.type || "image"
           }];
-          
+
           await Media.findByIdAndUpdate(item._id, {
             $set: {
               title: title,
@@ -365,22 +380,23 @@ app.patch("/auth/members/:id/restore", verifyToken, async (req, res) => {
   }
 });
 
-/* ADMIN LOGIN */
-const ADMIN_EMAIL = "admin@ohc.com";
-const ADMIN_PASSWORD = "HouseOfBread";
+// Retrieve the variables from your hidden .env file
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const JWT_SECRET = process.env.JWT_SECRET;
 
 app.post("/admin/login", (req, res) => {
   const { email, password } = req.body;
 
+  //login
   if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-    const token = jwt.sign({ email }, "secretkey", { expiresIn: "8h" });
+    const token = jwt.sign({ email }, JWT_SECRET, { expiresIn: "8h" });
     res.json({ token });
   } else {
     res.status(401).json({ message: "Invalid credentials" });
   }
 });
-
-/* TOKEN MIDDLEWARE (Admin) */
+/* /* TOKEN MIDDLEWARE (Admin) */
 function verifyToken(req, res, next) {
   const token = req.headers.authorization;
   if (!token) {
@@ -390,7 +406,7 @@ function verifyToken(req, res, next) {
 
   console.log(`[verifyToken] Verifying token on ${req.method} ${req.path} | token prefix: ${token.substring(0, 20)}...`);
 
-  jwt.verify(token, "secretkey", (err, decoded) => {
+  jwt.verify(token, JWT_SECRET, (err, decoded) => {
     if (err) {
       console.error(`[verifyToken] ❌ JWT error: ${err.name} — ${err.message}`);
       return res.status(401).json({ message: "Admin session expired. Please log in again.", detail: err.message });
@@ -399,8 +415,6 @@ function verifyToken(req, res, next) {
     next();
   });
 }
-
-
 /* TOKEN MIDDLEWARE (Member) */
 function verifyMemberToken(req, res, next) {
   const token = req.headers.authorization;
@@ -1112,7 +1126,7 @@ app.delete("/api/gallery/:id", verifyToken, async (req, res) => {
       return res.status(404).json({ message: "Media not found." });
     }
     console.log(`[Gallery DELETE] Found folder: "${media.title}", files: ${media.files?.length || 0}`);
-    
+
     // Remove all files from disk
     if (media.files && media.files.length > 0) {
       media.files.forEach((f) => {
@@ -1127,7 +1141,7 @@ app.delete("/api/gallery/:id", verifyToken, async (req, res) => {
         }
       });
     }
-    
+
     await media.deleteOne();
     console.log(`[Gallery DELETE] ✅ Folder deleted successfully: ${req.params.id}`);
     res.json({ message: "Media folder deleted successfully." });
@@ -1138,6 +1152,8 @@ app.delete("/api/gallery/:id", verifyToken, async (req, res) => {
 });
 
 /* SERVER */
-app.listen(process.env.PORT || 5000, () => {
-  console.log(`Server running on port ${process.env.PORT || 5000}`);
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on port ${PORT}`);
 });

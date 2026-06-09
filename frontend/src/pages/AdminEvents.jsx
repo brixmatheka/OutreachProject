@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { SITE_URL } from "../apiConfig";
 
 const styles = {
   page: {
@@ -404,7 +405,7 @@ function AdminEvents() {
       `About: \n${eventData.description}\n\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
       `View more details here:\n` +
-      `http://localhost:5173/events\n\n` +
+      `${SITE_URL}/events\n\n` +
       `#OutreachHopeChurch #ChurchEvents #Sunshine`;
 
     const encodedMessage = encodeURIComponent(message);

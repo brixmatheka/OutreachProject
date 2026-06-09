@@ -50,20 +50,32 @@ const GlobalStyle = () => (
     }
 
     .mesh-bg {
-      background-color: #e0f7ff;
-      background-image: 
-        radial-gradient(at 0% 0%, hsla(197, 92%, 92%, 1) 0, transparent 50%), 
-        radial-gradient(at 50% 0%, hsla(199, 95%, 88%, 1) 0, transparent 50%), 
-        radial-gradient(at 100% 0%, hsla(191, 91%, 90%, 1) 0, transparent 50%), 
-        radial-gradient(at 0% 100%, hsla(202, 90%, 93%, 1) 0, transparent 50%), 
-        radial-gradient(at 50% 100%, hsla(196, 94%, 91%, 1) 0, transparent 50%), 
-        radial-gradient(at 100% 100%, hsla(200, 96%, 89%, 1) 0, transparent 50%);
+      background-color: #eff6ff;
+      background-image:
+        radial-gradient(at 0% 0%, hsla(199, 96%, 88%, 1) 0, transparent 42%),
+        radial-gradient(at 100% 0%, hsla(186, 95%, 86%, 1) 0, transparent 40%),
+        radial-gradient(at 50% 100%, hsla(212, 96%, 90%, 1) 0, transparent 40%),
+        radial-gradient(at 0% 100%, hsla(225, 100%, 93%, 1) 0, transparent 35%);
+    }
+
+    .glass-card {
+      background: linear-gradient(145deg, rgba(255,255,255,0.94), rgba(240,249,255,0.98));
+      box-shadow: 0 18px 40px rgba(56, 189, 248, 0.12);
+    }
+
+    @media (max-width: 980px) {
+      .mobile-grid { grid-template-columns: 1fr !important; }
+      .mobile-stack { grid-template-columns: 1fr !important; }
+      .mobile-padding { padding: 40px 24px !important; }
+      .mobile-hero { padding: 60px 24px 48px !important; }
     }
 
     @media (max-width: 640px) {
-      .mobile-padding { padding: 30px 20px !important; }
-      .mobile-grid { grid-template-columns: 1fr !important; }
-      .mobile-hero { padding: 50px 20px 40px !important; }
+      .mobile-padding { padding: 28px 16px !important; }
+      .mobile-hero { padding: 44px 16px 34px !important; }
+      .mobile-hero h1 { font-size: 2rem !important; }
+      .mobile-card-pad { padding: 24px 18px !important; }
+      .mobile-stat-grid { grid-template-columns: 1fr !important; }
     }
   `}</style>
 );
@@ -114,7 +126,7 @@ function About() {
           <div
             className="mobile-hero"
             style={{
-              background: "linear-gradient(135deg, #075985 0%, #0284c7 100%)",
+              background: "linear-gradient(135deg, #0b5cff 0%, #0ea5e9 45%, #22d3ee 100%)",
               padding: "80px 40px 70px",
               textAlign: "center",
               position: "relative",
@@ -211,7 +223,7 @@ function About() {
 
             {/* ── Impact Section ── */}
             <div
-              className="stagger-2"
+              className="stagger-2 mobile-stat-grid"
               style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
@@ -228,11 +240,11 @@ function About() {
                   key={stat.label}
                   className="impact-pill"
                   style={{
-                    background: "rgba(14, 165, 233, 0.05)",
+                    background: "linear-gradient(145deg, rgba(14, 165, 233, 0.14), rgba(125, 211, 252, 0.12))",
                     padding: "30px",
                     borderRadius: "24px",
                     textAlign: "center",
-                    border: "1px solid rgba(14, 165, 233, 0.1)",
+                    border: "1px solid rgba(56, 189, 248, 0.25)",
                     cursor: "default"
                   }}
                 >
@@ -244,7 +256,7 @@ function About() {
 
             {/* ── Mission & Vision ── */}
             <div
-              className="mobile-grid stagger-3"
+              className="mobile-grid mobile-stack stagger-3"
               style={{
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
@@ -361,7 +373,7 @@ function About() {
 
             {/*Enhanced Location & Contact  */}
             <div
-              className="mobile-grid"
+              className="mobile-grid mobile-stack"
               style={{
                 display: "grid",
                 gridTemplateColumns: "1.2fr 0.8fr",

@@ -23,7 +23,10 @@ import BaptismRequest from "./pages/BaptismRequest"
 import AdminBaptism from "./pages/AdminBaptism"
 import Bible from "./pages/Bible"
 import Gallery from "./pages/Gallery"
+import Careers from "./pages/Careers"
+import Opportunities from "./pages/Opportunities"
 import AdminGallery from "./pages/AdminGallery"
+import AdminMinisters from "./pages/AdminMinisters"
 
 // Protected Route for Members
 const MemberProtectedRoute = ({ children }) => {
@@ -41,6 +44,14 @@ function App() {
   const [serverMessage, setServerMessage] = useState("")
   const [memberName, setMemberName] = useState(localStorage.getItem("memberName"))
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setIsScrolled(window.scrollY > 6);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   useEffect(() => {
     axios.get("http://localhost:5000/")
@@ -84,7 +95,7 @@ function App() {
   };
 
   const renderHeader = () => (
-    <header className="app-header">
+    <header className={`app-header ${isScrolled ? 'scrolled' : ''}`}>
       <div className="header-top">
         <div className="brand">
           <Link to="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -146,6 +157,7 @@ function App() {
           <Link to="/ministers" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Ministers</Link>
           <Link to="/events" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Events</Link>
           <Link to="/gallery" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Gallery</Link>
+          <Link to="/careers" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Careers</Link>
           <Link to="/give" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Give</Link>
           <Link to="/bible" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Bible</Link>
           <Link to="/prayerRequests" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Prayer Requests</Link>
@@ -202,9 +214,7 @@ function App() {
                     <div className="feature-icon">🙏</div>
                     <div>
                       <div className="feature-title">Join a Service</div>
-                      <div className="feature-description">
-                        Experience the presence of God with us
-                      </div>
+                      <div className="feature-description">Experience the presence of God with us</div>
                     </div>
                   </div>
                   <ul className="feature-list">
@@ -214,12 +224,74 @@ function App() {
                   </ul>
                   <div className="feature-footer">
                     <span className="feature-pill">In-Person</span>
-                    <span className="feature-pill">Live Stream</span>
+                    <Link to="/online-service" className="feature-pill" style={{ textDecoration: 'none' }}>Live Stream</Link>
+                  </div>
+                </div>
+
+                <div className="feature-card">
+                  <div className="feature-header">
+                    <div className="feature-icon">📖</div>
+                    <div>
+                      <div className="feature-title">Bible & Prayer</div>
+                      <div className="feature-description">Read scripture and send prayer requests with one click.</div>
+                    </div>
+                  </div>
+                  <ul className="feature-list">
+                    <li>Daily scripture reflections for encouragement and growth.</li>
+                    <li>Submit prayer requests directly from the church portal.</li>
+                    <li>Stay connected to life-changing teaching and worship.</li>
+                  </ul>
+                  <div className="feature-footer">
+                    <Link to="/bible" className="feature-pill" style={{ textDecoration: 'none' }}>Open Bible</Link>
+                    <Link to="/prayerRequests" className="feature-pill" style={{ textDecoration: 'none' }}>Prayer Requests</Link>
+                  </div>
+                </div>
+
+                <div className="feature-card">
+                  <div className="feature-header">
+                    <div className="feature-icon">🎥</div>
+                    <div>
+                      <div className="feature-title">Gallery & Media</div>
+                      <div className="feature-description">Enjoy moments from church life, events, and ministry.</div>
+                    </div>
+                  </div>
+                  <ul className="feature-list">
+                    <li>Explore inspiring images from services and outreach.</li>
+                    <li>Browse recent events and church highlights.</li>
+                    <li>Share the story of what God is doing in our community.</li>
+                  </ul>
+                  <div className="feature-footer">
+                    <Link to="/gallery" className="feature-pill" style={{ textDecoration: 'none' }}>View Gallery</Link>
+                    <Link to="/events" className="feature-pill" style={{ textDecoration: 'none' }}>Upcoming Events</Link>
+                  </div>
+                </div>
+
+                <div className="feature-card" style={{ background: "linear-gradient(135deg, rgba(15,23,42,0.95), rgba(8,47,73,0.95))", borderColor: "rgba(56,189,248,0.35)" }}>
+                  <div className="feature-header">
+                    <div className="feature-icon">💼</div>
+                    <div>
+                      <div className="feature-title">Careers & Ideas Hub</div>
+                      <div className="feature-description">Discover opportunities, share bold ideas, and grow with a vision-driven church community.</div>
+                    </div>
+                  </div>
+                  <ul className="feature-list">
+                    <li>See ministry and community roles that match your calling.</li>
+                    <li>Advertise your ideas, projects, and creative solutions.</li>
+                    <li>Be part of a vibrant space where vision meets action.</li>
+                  </ul>
+                  <div className="feature-footer">
+                    <Link to="/careers" className="feature-pill" style={{ textDecoration: 'none', background: "rgba(56,189,248,0.18)", color: "#e0f2fe" }}>Explore Careers</Link>
+                    <Link to="/careers" className="feature-pill" style={{ textDecoration: 'none', background: "rgba(34,197,94,0.16)", color: "#dcfce7" }}>Share an Idea</Link>
                   </div>
                 </div>
               </div>
             </section>
           </main>
+
+          <Link to="/chatbot" className="chatbot-fab" aria-label="Open chatbot">
+            <span className="chatbot-fab-icon">🤖</span>
+            Chatbot
+          </Link>
 
           <footer className="app-footer">
             <p>© {new Date().getFullYear()} Outreach Hope Church Sunshine | House of Bread</p>
@@ -231,6 +303,8 @@ function App() {
       <Route path="/about" element={<About />} />
       <Route path="/bible" element={<Bible />} />
       <Route path="/gallery" element={<Gallery />} />
+      <Route path="/careers" element={<Careers />} />
+      <Route path="/opportunities" element={<Opportunities />} />
       <Route path="/login" element={<MemberLogin />} />
       <Route path="/signup" element={<MemberSignup />} />
       <Route path="/admin-login" element={<AdminLogin />} />
@@ -254,6 +328,7 @@ function App() {
       <Route path="/admin/members" element={<AdminMembers />} />
       <Route path="/admin/baptism" element={<AdminBaptism />} />
       <Route path="/admin/gallery" element={<AdminGallery />} />
+      <Route path="/admin/ministers" element={<AdminMinisters />} />
     </Routes>
   )
 }

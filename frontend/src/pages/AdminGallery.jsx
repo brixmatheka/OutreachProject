@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-
-const API = "http://localhost:5000";
+import { API_URL as API } from "../apiConfig";
 
 // ─── Helper: always read token fresh from localStorage ───────────────────────
 function getAdminToken() {

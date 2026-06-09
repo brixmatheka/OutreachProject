@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-
-const API = "http://localhost:5000";
+import { API_URL as API } from "../apiConfig";
 
 export default function Gallery() {
   const [items, setItems] = useState([]);
