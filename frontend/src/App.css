@@ -305,6 +305,10 @@ body {
   color: #f87171;
 }
 
+.mobile-logout-wrapper {
+  display: none;
+}
+
 /* ── MAIN CONTENT ── */
 .app-main {
   flex: 1;
@@ -636,6 +640,32 @@ body {
 
   .nav-container.open .feature-nav {
     padding-top: 0.2rem;
+  }
+
+  .mobile-logout-wrapper {
+    display: flex;
+    width: 100%;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .mobile-logout-btn {
+    width: 100%;
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 0.8rem;
+    padding: 0.8rem;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s ease;
+  }
+
+  .mobile-logout-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
   }
 
   .auth-buttons {

@@ -141,7 +141,6 @@ function App() {
               <div className="user-info">
                 <span className="welcome-text">Hey <strong>{memberName}</strong></span>
               </div>
-              <button onClick={handleLogout} className="logout-link">Logout</button>
             </div>
           ) : (
             <div className="auth-buttons mobile-auth-buttons">
@@ -166,6 +165,13 @@ function App() {
           <Link to="/chatbot" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Chatbot</Link>
           <Link to="/online-service" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Online Service</Link>
         </div>
+
+        {/* Mobile Logout (bottom of menu) */}
+        {memberName && (
+          <div className="mobile-logout-wrapper">
+            <button onClick={handleLogout} className="mobile-logout-btn">Log Out</button>
+          </div>
+        )}
       </div>
     </header>
   );
