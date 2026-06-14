@@ -10,12 +10,17 @@
   --glass-bg: rgba(2, 6, 23, 0.7);
   --glass-border: rgba(14, 165, 233, 0.3);
   --success-color: #22c55e;
+  /* Header height variables for offset calculations */
+  --header-height: 120px;
+  --header-height-scrolled: 100px;
+  --header-height-mobile: 64px;
 }
 
 /* ── RESET & BASE ── */
 html {
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
+  scroll-padding-top: var(--header-height);
 }
 
 * {
@@ -303,7 +308,7 @@ body {
 /* ── MAIN CONTENT ── */
 .app-main {
   flex: 1;
-  padding: 6.2rem 5vw 4rem;
+  padding: var(--header-height) 5vw 4rem;
   display: flex;
   justify-content: center;
   z-index: 1;
@@ -567,13 +572,18 @@ body {
   }
 }
 
+/* ── RESPONSIVE: Update header offset for mobile ── */
 @media (max-width: 768px) {
-  .app-header {
-    padding: 0.85rem 14px 0.9rem;
+  :root {
+    --header-height: var(--header-height-mobile);
   }
 
-  .app-main {
-    padding-top: 8rem;
+  html {
+    scroll-padding-top: var(--header-height);
+  }
+
+  .app-header {
+    padding: 0.85rem 14px 0.9rem;
   }
   
   .header-top {
@@ -679,7 +689,7 @@ body {
   }
 
   .app-main {
-    padding: 2rem 1rem;
+    padding: var(--header-height) 1rem 2rem;
   }
   
   .hero {
@@ -751,7 +761,7 @@ body {
 
 @media (max-width: 480px) {
   .app-main {
-    padding: 1rem 0.75rem 2rem;
+    padding: var(--header-height) 0.75rem 2rem;
   }
 
   .brand {
