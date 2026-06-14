@@ -11,16 +11,17 @@ const styles = {
     color: "#f8fafc",
   },
 
-  /* ── Header ── */
   header: {
     background: "rgba(15, 23, 42, 0.8)",
     backdropFilter: "blur(12px)",
     borderBottom: "1px solid rgba(255,255,255,0.05)",
-    padding: "0 32px",
-    height: "68px",
+    padding: "10px clamp(10px, 4vw, 32px)",
+    minHeight: "68px",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: "10px",
     boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
     position: "sticky",
     top: 0,

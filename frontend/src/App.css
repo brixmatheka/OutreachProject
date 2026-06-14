@@ -662,6 +662,9 @@ body {
     width: 100%;
     justify-content: space-between;
     padding: 0.8rem 1.2rem;
+    border-radius: 1rem;
+    flex-wrap: wrap;
+    gap: 0.8rem;
   }
 
   .feature-nav {
