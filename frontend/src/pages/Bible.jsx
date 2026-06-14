@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
 
 const bibleBooks = [
   { name: "Genesis", chapters: 50, testament: "OT" }, { name: "Exodus", chapters: 40, testament: "OT" }, { name: "Leviticus", chapters: 27, testament: "OT" },
@@ -44,8 +43,10 @@ export default function Bible() {
     setLoading(true);
     setError("");
     try {
-      const response = await axios.get(`https://bible-api.com/${book}+${chapter}`);
-      setVerses(response.data.verses);
+      const response = await fetch(`https://bible-api.com/${book}+${chapter}`);
+      if (!response.ok) throw new Error("Failed to load chapter");
+      const data = await response.json();
+      setVerses(data.verses);
     } catch (err) {
       setError("Failed to load chapter. Please try again.");
     }
