@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import CloseButton from "../components/CloseButton";
-
-const STORAGE_KEY = "ministersPhotos";
+import axios from "axios";
+import { API_URL as API } from "../apiConfig";
 
 /* ─── Modern Styles ────────────────────────────────────────────── */
 const styles = {
@@ -131,30 +131,18 @@ const styles = {
     fontSize: "1.5rem",
     color: "#0369a1",
     marginBottom: "12px",
-  },
-  fellowshipDesc: {
-    fontSize: "0.95rem",
-    color: "#64748b",
-    lineHeight: 1.6,
-    margin: 0,
   }
-}
+};
 
 function Ministers() {
-  const [ministerPhotos, setMinisterPhotos] = useState(["", "", ""]);
+  const [ministers, setMinisters] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length === 3) {
-          setMinisterPhotos(parsed);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load minister photos:", error);
-    }
+    axios.get(`${API}/api/ministers`)
+      .then(res => setMinisters(res.data))
+      .catch(err => console.error("Failed to load ministers:", err))
+      .finally(() => setLoading(false));
   }, []);
 
   const placeholder = (initials) => `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><defs><linearGradient id='g' x1='0' x2='1' y1='0' y2='1'><stop stop-color='%230ea5e9'/><stop offset='1' stop-color='%2306517a'/></linearGradient></defs><rect width='240' height='240' rx='32' fill='url(%23g)'/><circle cx='120' cy='86' r='42' fill='rgba(255,255,255,0.18)'/><rect x='56' y='140' width='128' height='38' rx='19' fill='rgba(255,255,255,0.18)'/><text x='50%' y='210' text-anchor='middle' font-family='Arial, sans-serif' font-size='20' fill='white'>${initials}</text></svg>`)}`;
@@ -172,7 +160,7 @@ function Ministers() {
       <div style={styles.container}>
         {/* Page Header */}
         <div style={styles.headerGroup}>
-          <span style={styles.superTitle}>Faith & Leadership</span>
+          <span style={styles.superTitle}>Faith &amp; Leadership</span>
           <h1 style={styles.mainTitle}>Spiritual Guidance</h1>
         </div>
 
@@ -182,68 +170,38 @@ function Ministers() {
           <h2 style={styles.sectionTitle}>Our Ministers</h2>
         </div>
 
-        <div style={styles.grid}>
-          {/* Minister 1 */}
-          <div className="minister-card" style={styles.card}>
-            <div style={styles.avatarContainer}>
-              <img
-                src={ministerPhotos[0] || placeholder("RCO")}
-                alt="Rev. Clinton OKANGA"
-                style={styles.avatar}
-              />
-            </div>
-            <div style={styles.cardBody}>
-              <h3 style={styles.ministerName}>Rev. Clinton OKANGA</h3>
-              <span style={styles.ministerRole}>Senior Pastor</span>
-              <p style={styles.ministerBio}>
-                Rev. Clinton leads Outreach Hope Church with a vision to raise disciples and impact the Sunshine community with hope.
-              </p>
-            </div>
+        {loading ? (
+          <p style={{ color: "#64748b", textAlign: "center", padding: "40px 0" }}>Loading ministers…</p>
+        ) : ministers.length === 0 ? (
+          <p style={{ color: "#64748b", textAlign: "center", padding: "40px 0" }}>No ministers found.</p>
+        ) : (
+          <div style={styles.grid}>
+            {ministers.map(minister => (
+              <div key={minister._id} className="minister-card" style={styles.card}>
+                <div style={styles.avatarContainer}>
+                  <img
+                    src={minister.photoUrl ? `${API}${minister.photoUrl}` : placeholder(minister.name.split(" ").map(w => w[0]).join("").slice(0, 3))}
+                    alt={minister.name}
+                    style={styles.avatar}
+                  />
+                </div>
+                <div style={styles.cardBody}>
+                  <h3 style={styles.ministerName}>{minister.name}</h3>
+                  <span style={styles.ministerRole}>{minister.role}</span>
+                  {minister.bio && <p style={styles.ministerBio}>{minister.bio}</p>}
+                </div>
+              </div>
+            ))}
           </div>
+        )}
 
-          {/* Minister 2 */}
-          <div className="minister-card" style={styles.card}>
-            <div style={styles.avatarContainer}>
-              <img
-                src={ministerPhotos[1] || placeholder("PDN")}
-                alt="Pastor DAVID NDUNGU"
-                style={styles.avatar}
-              />
-            </div>
-            <div style={styles.cardBody}>
-              <h3 style={styles.ministerName}>Pastor DAVID NDUNGU</h3>
-              <span style={styles.ministerRole}>Associate Pastor</span>
-              <p style={styles.ministerBio}>
-                Pastor DAVID oversees discipleship and homecells, encouraging believers to grow in faith and service.
-              </p>
-            </div>
-          </div>
-
-          {/* Minister 3 */}
-          <div className="minister-card" style={styles.card}>
-            <div style={styles.avatarContainer}>
-              <img
-                src={ministerPhotos[2] || placeholder("JN")}
-                alt="Pastor John Ndirangu"
-                style={styles.avatar}
-              />
-            </div>
-            <div style={styles.cardBody}>
-              <h3 style={styles.ministerName}>Pastor John Ndirangu</h3>
-              <span style={styles.ministerRole}>Youth Pastor</span>
-              <p style={styles.ministerBio}>
-                Pastor John leads the youth fellowship, inspiring young people to live boldly for Christ and serve their community.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Ministries Section */}
+        {/* Ministries Section Header */}
         <div style={styles.sectionHeader}>
           <div style={styles.accentBar} />
-          <h2 style={styles.sectionTitle}>Ministries & Leadership</h2>
+          <h2 style={styles.sectionTitle}>Ministries &amp; Leadership</h2>
         </div>
 
+        {/* Ministries Grid */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "20px", marginBottom: "40px" }}>
           {[
             {
@@ -333,11 +291,9 @@ function Ministers() {
             </article>
           ))}
         </div>
-
-        </div>
       </div>
-    
-  )
+    </div>
+  );
 }
 
-export default Ministers
+export default Ministers;
