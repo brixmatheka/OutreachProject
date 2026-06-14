@@ -157,7 +157,7 @@ function AdminTransactions() {
 
   const fetchTransactions = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/admin/transactions", { headers: { Authorization: token } });
+      const res = await axios.get("/api/admin/transactions", { headers: { Authorization: token } });
       setTransactions(res.data);
     } catch (err) { console.log("Error fetching transactions:", err); }
   };

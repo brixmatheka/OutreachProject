@@ -381,7 +381,7 @@ function AdminEvents() {
   };
 
   const fetchEvents = async () => {
-    const res = await axios.get("http://localhost:5000/events");
+    const res = await axios.get("/events");
     setEvents(res.data);
   };
 
@@ -429,7 +429,7 @@ function AdminEvents() {
     }
 
     try {
-      await axios.post("http://localhost:5000/events", { title, date, description }, { headers: { Authorization: token } });
+      await axios.post("/events", { title, date, description }, { headers: { Authorization: token } });
       const newEvent = { title, date, description };
       setTitle(""); setDate(""); setDescription("");
       fetchEvents();
@@ -440,7 +440,7 @@ function AdminEvents() {
 
   const deleteEvent = async (id) => {
     if (!window.confirm("Are you sure you want to delete this event?")) return;
-    await axios.delete(`http://localhost:5000/events/${id}`, { headers: { Authorization: token } });
+    await axios.delete(`/events/${id}`, { headers: { Authorization: token } });
     fetchEvents();
   };
 

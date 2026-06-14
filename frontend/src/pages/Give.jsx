@@ -193,7 +193,7 @@ function Give() {
     if (!rid) return;
     
     try {
-      const statusRes = await fetch(`http://localhost:5000/api/transactions/status/${rid}`);
+      const statusRes = await fetch(`/api/transactions/status/${rid}`);
       const statusData = await statusRes.json();
 
       if (statusData.status === "Completed") {
@@ -240,7 +240,7 @@ function Give() {
       const lastName = localStorage.getItem("memberLastName") || "";
       const memberId = localStorage.getItem("memberId") || "0000";
 
-      const response = await fetch("http://localhost:5000/api/stkpush", {
+      const response = await fetch("/api/stkpush", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 

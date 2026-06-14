@@ -387,13 +387,13 @@ function AdminDashboard() {
   const token = localStorage.getItem("token");
 
   const fetchEvents = async () => {
-    const res = await axios.get("http://localhost:5000/events");
+    const res = await axios.get("/events");
     setEvents(res.data);
   };
 
   const fetchPrayerRequests = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/prayer-requests", {
+      const res = await axios.get("/prayer-requests", {
         headers: { Authorization: token },
       });
       setPrayerRequests(res.data);
@@ -404,7 +404,7 @@ function AdminDashboard() {
 
   const fetchTransactions = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/admin/transactions", {
+      const res = await axios.get("/api/admin/transactions", {
         headers: { Authorization: token },
       });
       setTransactions(res.data);
@@ -415,7 +415,7 @@ function AdminDashboard() {
 
   const fetchProjects = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/projects");
+      const res = await axios.get("/projects");
       setProjects(res.data);
     } catch (err) {
       console.log("Error fetching projects:", err);
@@ -424,7 +424,7 @@ function AdminDashboard() {
 
   const fetchMembers = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/auth/members", {
+      const res = await axios.get("/auth/members", {
         headers: { Authorization: token },
       });
       setMembers(res.data);
@@ -435,7 +435,7 @@ function AdminDashboard() {
 
   const fetchBaptismRequests = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/admin/baptism-requests", {
+      const res = await axios.get("/api/admin/baptism-requests", {
         headers: { Authorization: token },
       });
       setBaptismRequests(res.data);
@@ -458,7 +458,7 @@ function AdminDashboard() {
   const createEvent = async () => {
     try {
       await axios.post(
-        "http://localhost:5000/events",
+        "/events",
         { title, date, description },
         { headers: { Authorization: token } }
       );
@@ -472,14 +472,14 @@ function AdminDashboard() {
   };
 
   const deleteEvent = async (id) => {
-    await axios.delete(`http://localhost:5000/events/${id}`, {
+    await axios.delete(`/events/${id}`, {
       headers: { Authorization: token },
     });
     fetchEvents();
   };
 
   const deletePrayerRequest = async (id) => {
-    await axios.delete(`http://localhost:5000/prayer-requests/${id}`, {
+    await axios.delete(`/prayer-requests/${id}`, {
       headers: { Authorization: token },
     });
     fetchPrayerRequests();
@@ -487,7 +487,7 @@ function AdminDashboard() {
 
   const toggleReadStatus = async (id, currentStatus) => {
     try {
-      await axios.patch(`http://localhost:5000/prayer-requests/${id}/read`,
+      await axios.patch(`/prayer-requests/${id}/read`,
         { isRead: !currentStatus },
         { headers: { Authorization: token } }
       );
@@ -500,7 +500,7 @@ function AdminDashboard() {
   const createProject = async () => {
     try {
       await axios.post(
-        "http://localhost:5000/projects",
+        "/projects",
         { title: projTitle, description: projDesc, status: projStatus },
         { headers: { Authorization: token } }
       );
@@ -513,7 +513,7 @@ function AdminDashboard() {
   };
 
   const deleteProject = async (id) => {
-    await axios.delete(`http://localhost:5000/projects/${id}`, {
+    await axios.delete(`/projects/${id}`, {
       headers: { Authorization: token },
     });
     fetchProjects();

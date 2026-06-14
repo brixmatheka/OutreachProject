@@ -102,7 +102,7 @@ function AdminBaptism() {
 
   const fetchRequests = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/admin/baptism-requests", {
+      const res = await axios.get("/api/admin/baptism-requests", {
         headers: { Authorization: getToken() }
       });
       setRequests(res.data);
@@ -121,7 +121,7 @@ function AdminBaptism() {
   const handleUpdateStatus = async (id, currentStatus) => {
     const nextStatus = currentStatus === "Pending" ? "Completed" : "Pending";
     try {
-      await axios.patch(`http://localhost:5000/api/admin/baptism-requests/${id}/status`, { status: nextStatus }, {
+      await axios.patch(`/api/admin/baptism-requests/${id}/status`, { status: nextStatus }, {
         headers: { Authorization: getToken() }
       });
       fetchRequests();
@@ -145,7 +145,7 @@ function AdminBaptism() {
       return;
     }
     try {
-      await axios.delete(`http://localhost:5000/api/admin/baptism-requests/${id}`, {
+      await axios.delete(`/api/admin/baptism-requests/${id}`, {
         headers: { Authorization: token }
       });
       fetchRequests();

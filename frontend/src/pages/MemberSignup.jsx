@@ -100,7 +100,7 @@ function MemberSignup() {
       if (calculatedAge <= 18) {
         delete payload.idNo;
       }
-      const res = await axios.post("http://localhost:5000/auth/signup", payload);
+      const res = await axios.post("/auth/signup", payload);
       localStorage.setItem("memberToken", res.data.token);
       localStorage.setItem("memberName", res.data.member.firstName);
       localStorage.setItem("memberLastName", res.data.member.lastName);

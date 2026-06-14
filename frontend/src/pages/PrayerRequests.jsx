@@ -44,7 +44,7 @@ function PrayerRequest() {
     const token = localStorage.getItem("memberToken")
     if (!token) return
     axios
-      .get("http://localhost:5000/auth/me", { headers: { Authorization: token } })
+      .get("/auth/me", { headers: { Authorization: token } })
       .then((res) => {
         const m = res.data
         setFormData((prev) => ({
@@ -94,7 +94,7 @@ function PrayerRequest() {
 
     try {
       await axios.post(
-        "http://localhost:5000/prayer-requests",
+        "/prayer-requests",
         {
           name: formData.isAnonymous ? "Anonymous" : formData.name,
           phone: formData.phone,

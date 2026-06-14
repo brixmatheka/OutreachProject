@@ -17,7 +17,7 @@ function AdminLogin() {
     setLoading(true);
     setError("");
     try {
-      const res = await axios.post("http://localhost:5000/admin/login", credentials);
+      const res = await axios.post("/admin/login", credentials);
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("adminToken", res.data.token); // also store under "adminToken" for consistency
       window.location.href = "/admin-dashboard";

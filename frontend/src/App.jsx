@@ -54,7 +54,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    axios.get("http://localhost:5000/")
+    axios.get("/")
       .then((res) => {
         setServerMessage(res.data)
       })
@@ -66,7 +66,7 @@ function App() {
   useEffect(() => {
     const token = localStorage.getItem("memberToken");
     if (token) {
-      axios.get("http://localhost:5000/auth/me", {
+      axios.get("/auth/me", {
         headers: { Authorization: token }
       })
         .then((res) => {

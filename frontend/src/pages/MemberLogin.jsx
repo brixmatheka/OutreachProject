@@ -20,7 +20,7 @@ function MemberLogin() {
     setLoading(true);
     setError("");
     try {
-      const res = await axios.post("http://localhost:5000/auth/login", credentials);
+      const res = await axios.post("/auth/login", credentials);
       localStorage.setItem("memberToken", res.data.token);
       localStorage.setItem("memberName", res.data.member.firstName);
       localStorage.setItem("memberLastName", res.data.member.lastName);

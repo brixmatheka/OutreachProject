@@ -87,7 +87,7 @@ function AdminProjects() {
 
   const fetchProjects = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/projects");
+      const res = await axios.get("/projects");
       setProjects(res.data);
     } catch (err) { console.log("Error fetching projects:", err); }
   };
@@ -116,7 +116,7 @@ function AdminProjects() {
 
   const createProject = async () => {
     try {
-      await axios.post("http://localhost:5000/projects", { title: projTitle, description: projDesc, status: projStatus }, { headers: { Authorization: token } });
+      await axios.post("/projects", { title: projTitle, description: projDesc, status: projStatus }, { headers: { Authorization: token } });
       const newProj = { title: projTitle, description: projDesc, status: projStatus };
       setProjTitle(""); setProjDesc("");
       fetchProjects();
@@ -127,7 +127,7 @@ function AdminProjects() {
   };
 
   const deleteProject = async (id) => {
-    await axios.delete(`http://localhost:5000/projects/${id}`, { headers: { Authorization: token } });
+    await axios.delete(`/projects/${id}`, { headers: { Authorization: token } });
     fetchProjects();
   };
 

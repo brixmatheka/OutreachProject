@@ -23,7 +23,7 @@ function AdminPrayerRequests() {
 
   const fetchPrayerRequests = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/prayer-requests", {
+      const res = await axios.get("/prayer-requests", {
         headers: { Authorization: getToken() },
       });
       setPrayerRequests(res.data);
@@ -40,7 +40,7 @@ function AdminPrayerRequests() {
   const deletePrayerRequest = async (id) => {
     if (!window.confirm("Are you sure you want to delete this prayer request?")) return;
     try {
-      await axios.delete(`http://localhost:5000/prayer-requests/${id}`, {
+      await axios.delete(`/prayer-requests/${id}`, {
         headers: { Authorization: getToken() },
       });
       if (expandedId === id) setExpandedId(null);
@@ -53,7 +53,7 @@ function AdminPrayerRequests() {
   const toggleReadStatus = async (id, currentStatus) => {
     try {
       await axios.patch(
-        `http://localhost:5000/prayer-requests/${id}/read`,
+        `/prayer-requests/${id}/read`,
         { isRead: !currentStatus },
         { headers: { Authorization: getToken() } }
       );

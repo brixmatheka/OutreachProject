@@ -25,7 +25,7 @@ function BaptismRequest() {
   const hasCompletedRequest = !!completedRequest;
 
   const fetchMyRequests = (token) => {
-    axios.get("http://localhost:5000/api/my-baptism-requests", {
+    axios.get("/api/my-baptism-requests", {
       headers: { Authorization: token }
     })
       .then(res => setMyRequests(res.data))
@@ -39,7 +39,7 @@ function BaptismRequest() {
 
     setPrefilling(true);
     axios
-      .get("http://localhost:5000/auth/me", {
+      .get("/auth/me", {
         headers: { Authorization: token },
       })
       .then((res) => {
@@ -143,7 +143,7 @@ function BaptismRequest() {
       if (payload.phone) {
         payload.phone = "" + payload.phone;
       }
-      await axios.post("http://localhost:5000/api/baptism-requests", payload);
+      await axios.post("/api/baptism-requests", payload);
       setSuccess(true);
       setFormData({ fullName: "", email: "", phone: "", dateOfBirth: "", preferredDate: "" });
 

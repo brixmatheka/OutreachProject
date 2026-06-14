@@ -204,7 +204,7 @@ function AdminMembers() {
   const fetchMembers = async () => {
     try {
       setLoading(true);
-      const res = await axios.get("http://localhost:5000/auth/members", {
+      const res = await axios.get("/auth/members", {
         headers: { Authorization: token }
       });
       setActiveMembers(res.data);
@@ -218,7 +218,7 @@ function AdminMembers() {
 
   const fetchDeletedMembers = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/auth/members/deleted", {
+      const res = await axios.get("/auth/members/deleted", {
         headers: { Authorization: token }
       });
       setDeletedMembers(res.data);
@@ -230,7 +230,7 @@ function AdminMembers() {
   const handleDeleteMember = async (id) => {
     if (!window.confirm("Are you sure you want to delete this member?")) return;
     try {
-      await axios.delete(`http://localhost:5000/auth/members/${id}`, {
+      await axios.delete(`/auth/members/${id}`, {
         headers: { Authorization: token }
       });
       alert("Member deleted and recorded successfully!");
@@ -244,7 +244,7 @@ function AdminMembers() {
   const handleRestoreMember = async (id) => {
     if (!window.confirm("Are you sure you want to restore this member?")) return;
     try {
-      await axios.patch(`http://localhost:5000/auth/members/${id}/restore`, {}, {
+      await axios.patch(`/auth/members/${id}/restore`, {}, {
         headers: { Authorization: token }
       });
       alert("Member restored successfully!");

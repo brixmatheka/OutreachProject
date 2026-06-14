@@ -263,7 +263,7 @@ function EventCard({ event, userProfile }) {
                         return;
                       }
                       try {
-                        await axios.post(`http://localhost:5000/events/${event._id}/attend`, attendeeData);
+                        await axios.post(`/events/${event._id}/attend`, attendeeData);
                         setConfirmed(true);
                       } catch (err) {
                         alert(err.response?.data?.message || "Error confirming attendance");
@@ -366,7 +366,7 @@ function Events() {
     const token = localStorage.getItem("memberToken");
     if (!token) return;
     try {
-      const res = await axios.get("http://localhost:5000/auth/me", {
+      const res = await axios.get("/auth/me", {
         headers: { Authorization: token },
       });
       setUserProfile(res.data);
@@ -378,8 +378,8 @@ function Events() {
   const fetchData = async () => {
     try {
       const [evRes, projRes] = await Promise.all([
-        axios.get("http://localhost:5000/events"),
-        axios.get("http://localhost:5000/projects")
+        axios.get("/events"),
+        axios.get("/projects")
       ]);
 
       // Filter out past events
