@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import "./apiConfig" // Ensure axios is configured with auth interceptor
 import axios from "axios"
 import './App.css'
 import { Routes, Route, Link, Navigate, useLocation } from "react-router-dom"

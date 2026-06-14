@@ -126,7 +126,8 @@ app.use(cors({
     }
 
     return callback(new Error("Not allowed by CORS"));
-  }
+  },
+  credentials: true
 }));
 app.use(express.json());
 app.use("/uploads", express.static(uploadsDir));
@@ -396,12 +397,17 @@ app.post("/admin/login", (req, res) => {
     res.status(401).json({ message: "Invalid credentials" });
   }
 });
-/* /* TOKEN MIDDLEWARE (Admin) */
+/* TOKEN MIDDLEWARE (Admin) */
 function verifyToken(req, res, next) {
-  const token = req.headers.authorization;
+  let token = req.headers.authorization;
   if (!token) {
     console.warn(`[verifyToken] ❌ No token provided on ${req.method} ${req.path}`);
     return res.status(403).json({ message: "No token provided" });
+  }
+
+  // Strip "Bearer " prefix if present (axios/fetch may add it automatically)
+  if (token.startsWith("Bearer ")) {
+    token = token.slice(7);
   }
 
   console.log(`[verifyToken] Verifying token on ${req.method} ${req.path} | token prefix: ${token.substring(0, 20)}...`);
@@ -412,13 +418,19 @@ function verifyToken(req, res, next) {
       return res.status(401).json({ message: "Admin session expired. Please log in again.", detail: err.message });
     }
     console.log(`[verifyToken] ✅ Token valid, email: ${decoded.email}`);
+    req.admin = decoded;
     next();
   });
 }
 /* TOKEN MIDDLEWARE (Member) */
 function verifyMemberToken(req, res, next) {
-  const token = req.headers.authorization;
+  let token = req.headers.authorization;
   if (!token) return res.status(403).json({ message: "Authentication required." });
+
+  // Strip "Bearer " prefix if present (axios/fetch may add it automatically)
+  if (token.startsWith("Bearer ")) {
+    token = token.slice(7);
+  }
 
   jwt.verify(token, "membersecretkey", (err, decoded) => {
     if (err) return res.status(401).json({ message: "Session expired. Please log in again." });
