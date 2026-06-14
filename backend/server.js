@@ -83,6 +83,7 @@ import Project from "./models/Project.js";
 import Member from "./models/Member.js";
 import BaptismRequest from "./models/BaptismRequest.js";
 import Media from "./models/Media.js";
+import Minister from "./models/Minister.js";
 
 dotenv.config({ path: path.join(__dirname, ".env") });
 
@@ -1159,6 +1160,91 @@ app.delete("/api/gallery/:id", verifyToken, async (req, res) => {
     res.json({ message: "Media folder deleted successfully." });
   } catch (err) {
     console.error(`[Gallery DELETE] ❌ Error: ${err.message}`);
+    res.status(500).json({ message: "Server error: " + err.message });
+  }
+});
+
+/* ─────────────────────────────────────────────────────────────────
+   MINISTERS
+   ───────────────────────────────────────────────────────────────── */
+
+/* GET ALL MINISTERS (public — sorted by order) */
+app.get("/api/ministers", async (req, res) => {
+  try {
+    const ministers = await Minister.find().sort({ order: 1, createdAt: 1 });
+    res.json(ministers);
+  } catch (err) {
+    res.status(500).json({ message: "Server error: " + err.message });
+  }
+});
+
+/* CREATE MINISTER WITH PHOTO (admin only) */
+app.post("/api/ministers", verifyToken, upload.single("photo"), async (req, res) => {
+  try {
+    const { name, role, bio, order } = req.body;
+    if (!name || !role) return res.status(400).json({ message: "Name and role are required." });
+
+    const photoUrl = req.file ? `/uploads/${req.file.filename}` : "";
+    const minister = new Minister({
+      name: name.trim(),
+      role: role.trim(),
+      bio: (bio || "").trim(),
+      photoUrl,
+      order: Number(order) || 0,
+    });
+    await minister.save();
+    res.status(201).json(minister);
+  } catch (err) {
+    res.status(500).json({ message: "Server error: " + err.message });
+  }
+});
+
+/* UPDATE MINISTER (admin only — can replace photo) */
+app.put("/api/ministers/:id", verifyToken, upload.single("photo"), async (req, res) => {
+  try {
+    const minister = await Minister.findById(req.params.id);
+    if (!minister) return res.status(404).json({ message: "Minister not found." });
+
+    const { name, role, bio, order } = req.body;
+    if (name)  minister.name  = name.trim();
+    if (role)  minister.role  = role.trim();
+    if (bio !== undefined) minister.bio = bio.trim();
+    if (order !== undefined) minister.order = Number(order);
+
+    if (req.file) {
+      // Delete old photo from disk
+      if (minister.photoUrl) {
+        const oldPath = path.join(__dirname, minister.photoUrl);
+        if (fs.existsSync(oldPath)) {
+          try { fs.unlinkSync(oldPath); } catch {}
+        }
+      }
+      minister.photoUrl = `/uploads/${req.file.filename}`;
+    }
+
+    await minister.save();
+    res.json(minister);
+  } catch (err) {
+    res.status(500).json({ message: "Server error: " + err.message });
+  }
+});
+
+/* DELETE MINISTER (admin only) */
+app.delete("/api/ministers/:id", verifyToken, async (req, res) => {
+  try {
+    const minister = await Minister.findById(req.params.id);
+    if (!minister) return res.status(404).json({ message: "Minister not found." });
+
+    // Delete photo from disk
+    if (minister.photoUrl) {
+      const filePath = path.join(__dirname, minister.photoUrl);
+      if (fs.existsSync(filePath)) {
+        try { fs.unlinkSync(filePath); } catch {}
+      }
+    }
+    await minister.deleteOne();
+    res.json({ message: "Minister deleted." });
+  } catch (err) {
     res.status(500).json({ message: "Server error: " + err.message });
   }
 });
