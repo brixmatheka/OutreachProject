@@ -3,7 +3,7 @@ services:
     runtime: node
     name: outreach-backend
     plan: starter
-    buildCommand: cd backend && npm ci
+    buildCommand: cd backend && npm install
     startCommand: cd backend && npm start
     healthCheckPath: /
     disk:
@@ -14,7 +14,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: CLIENT_ORIGIN
-        value: https://outreach-frontend.onrender.com
+        value: https://outreachhopechurchsunshine.onrender.com
       - key: UPLOAD_DIR
         value: /opt/render/project/src/backend/uploads
       - key: MONGO_URI
@@ -41,7 +41,7 @@ services:
   - type: web
     runtime: static
     name: outreach-frontend
-    buildCommand: cd frontend && npm ci && npm run build
+    buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: frontend/dist
     routes:
       - type: rewrite
@@ -51,4 +51,4 @@ services:
       - key: VITE_API_URL
         value: https://outreach-backend.onrender.com
       - key: VITE_SITE_URL
-        value: https://outreach-frontend.onrender.com
+        value: https://outreachhopechurchsunshine.onrender.com
