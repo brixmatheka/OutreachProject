@@ -90,7 +90,7 @@ body {
 }
 
 .app-header.scrolled {
-  padding: 0.55rem 4vw;
+  padding: 0.55rem 9vw;
   background: rgba(2, 6, 23, 0.96);
   box-shadow: 0 12px 30px rgba(8, 47, 73, 0.4);
 }
@@ -333,6 +333,7 @@ body {
 
 .hero-content {
   max-width: 800px;
+  padding-top: 8vh;
 }
 
 .hero h1 {
@@ -581,13 +582,11 @@ body {
   html {
     scroll-padding-top: var(--header-height);
   }
-
-  .app-header {
-    padding: 0.85rem 14px 0.9rem;
-  }
-  
+.app-header {
+  padding: 0.85rem clamp(0.75rem, 3vw, 1.5rem) 0.9rem;
+}
   .header-top {
-    position: relative;
+    position:sticky;
   }
   
   .mobile-toggle {
@@ -625,13 +624,14 @@ body {
   }
 
   .nav-container.open {
-    max-height: 70vh;
+    max-height: 80vh;
     overflow-y: auto;
     padding: 0.75rem 14px 1rem;
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
     scroll-padding-top: 0.75rem;
+    padding-top: 1rem;
   }
 
   .nav-container.open .feature-nav {
