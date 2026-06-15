@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import "../apiConfig"; // Ensure axios is configured with auth interceptor
 import axios from "axios";
+import { ADMIN_ROLE_LABELS, canAccessAdminSection, clearAdminAuth, getAdminAuth } from "../adminAccess";
 
 const styles = {
   /* ── Page wrapper ── */
@@ -386,7 +387,11 @@ function AdminDashboard() {
   const [projDesc, setProjDesc] = useState("");
   const [projStatus, setProjStatus] = useState("Ongoing");
 
-  const token = localStorage.getItem("token");
+  const adminAuth = getAdminAuth();
+  const token = adminAuth.token;
+  const roleLabel = adminAuth.roleLabel || ADMIN_ROLE_LABELS[adminAuth.role] || "Admin";
+  const canAccess = (section) => canAccessAdminSection(section);
+  const hiddenIfNoAccess = (section) => (canAccess(section) ? {} : { display: "none" });
 
   const fetchEvents = async () => {
     const res = await axios.get("/events");
@@ -399,8 +404,8 @@ function AdminDashboard() {
         headers: { Authorization: token },
       });
       setPrayerRequests(res.data);
-    } catch (err) {
-      console.log("Error fetching prayer requests:", err);
+    } catch {
+      setPrayerRequests([]);
     }
   };
 
@@ -410,8 +415,8 @@ function AdminDashboard() {
         headers: { Authorization: token },
       });
       setTransactions(res.data);
-    } catch (err) {
-      console.log("Error fetching transactions:", err);
+    } catch {
+      setTransactions([]);
     }
   };
 
@@ -419,8 +424,8 @@ function AdminDashboard() {
     try {
       const res = await axios.get("/projects");
       setProjects(res.data);
-    } catch (err) {
-      console.log("Error fetching projects:", err);
+    } catch {
+      setProjects([]);
     }
   };
 
@@ -430,8 +435,8 @@ function AdminDashboard() {
         headers: { Authorization: token },
       });
       setMembers(res.data);
-    } catch (err) {
-      console.log("Error fetching members:", err);
+    } catch {
+      setMembers([]);
     }
   };
 
@@ -441,21 +446,21 @@ function AdminDashboard() {
         headers: { Authorization: token },
       });
       setBaptismRequests(res.data);
-    } catch (err) {
-      console.log("Error fetching baptism requests:", err);
+    } catch {
+      setBaptismRequests([]);
     }
   };
 
   useEffect(() => {
     if (token) {
-      fetchEvents();
-      fetchPrayerRequests();
-      fetchTransactions();
-      fetchProjects();
-      fetchMembers();
-      fetchBaptismRequests();
+      if (canAccessAdminSection("events")) fetchEvents();
+      if (canAccessAdminSection("prayerRequests")) fetchPrayerRequests();
+      if (canAccessAdminSection("transactions")) fetchTransactions();
+      if (canAccessAdminSection("projects")) fetchProjects();
+      if (canAccessAdminSection("members")) fetchMembers();
+      if (canAccessAdminSection("baptism")) fetchBaptismRequests();
     }
-  }, [token]);
+  }, [token, adminAuth.role]);
 
   const createEvent = async () => {
     try {
@@ -494,8 +499,8 @@ function AdminDashboard() {
         { headers: { Authorization: token } }
       );
       fetchPrayerRequests();
-    } catch (err) {
-      console.error("Error updating prayer request status:", err);
+    } catch {
+      alert("Error updating prayer request status");
     }
   };
 
@@ -522,7 +527,7 @@ function AdminDashboard() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
+    clearAdminAuth();
     window.location.href = "/admin-login";
   };
 
@@ -588,7 +593,7 @@ function AdminDashboard() {
           <div style={styles.headerDot} />
           <div>
             <h2 style={styles.headerTitle}> Outreach Admin</h2>
-            <p style={styles.headerSubtitle}>Dashboard Portal</p>
+            <p style={styles.headerSubtitle}>{roleLabel}</p>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -607,27 +612,27 @@ function AdminDashboard() {
 
         {/*Stat Cards (Overview) */}
         <div style={styles.statsRow}>
-          <div className="stat-card" style={styles.statCard("#38bdf8")}>
+          <div className="stat-card" style={{ ...styles.statCard("#38bdf8"), ...hiddenIfNoAccess("events") }}>
             <div style={styles.statIcon("#38bdf8")} />
             <span style={styles.statNumber("#38bdf8")}>{events.length}</span>
             <span style={styles.statLabel}>Outreach Events</span>
           </div>
-          <div className="stat-card" style={styles.statCard("#a78bfa")}>
+          <div className="stat-card" style={{ ...styles.statCard("#a78bfa"), ...hiddenIfNoAccess("projects") }}>
             <div style={styles.statIcon("#a78bfa")} />
             <span style={styles.statNumber("#a78bfa")}>{projects.length}</span>
             <span style={styles.statLabel}>Active Projects</span>
           </div>
-          <div className="stat-card" style={styles.statCard("#818cf8")}>
+          <div className="stat-card" style={{ ...styles.statCard("#818cf8"), ...hiddenIfNoAccess("prayerRequests") }}>
             <div style={styles.statIcon("#818cf8")} />
             <span style={styles.statNumber("#818cf8")}>{prayerRequests.length}</span>
             <span style={styles.statLabel}>Prayer Requests</span>
           </div>
-          <div className="stat-card" style={styles.statCard("#fbbf24")}>
+          <div className="stat-card" style={{ ...styles.statCard("#fbbf24"), ...hiddenIfNoAccess("members") }}>
             <div style={styles.statIcon("#fbbf24")} />
             <span style={styles.statNumber("#fbbf24")}>{members.length}</span>
             <span style={styles.statLabel}>Members</span>
           </div>
-          <div className="stat-card" style={styles.statCard("#34d399")}>
+          <div className="stat-card" style={{ ...styles.statCard("#34d399"), ...hiddenIfNoAccess("transactions") }}>
             <div style={styles.statIcon("#34d399")} />
             <span style={styles.statNumber("#34d399")}>
               {transactions.filter(t => t.status === "Completed").reduce((sum, t) => sum + t.amount, 0).toLocaleString()}
@@ -646,6 +651,7 @@ function AdminDashboard() {
           <div className="stat-card" onClick={() => window.location.href = "/admin/events"} style={{
             ...styles.glassCard, cursor: "pointer", marginBottom: 0, display: "flex", flexDirection: "column", gap: "14px",
             borderLeft: "5px solid #38bdf8", transition: "transform 0.2s, box-shadow 0.2s",
+            ...hiddenIfNoAccess("events"),
           }}>
             <div style={{ fontSize: "2.2rem" }}>📅</div>
             <h4 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#38bdf8" }}>Events</h4>
@@ -661,6 +667,7 @@ function AdminDashboard() {
           <div className="stat-card" onClick={() => window.location.href = "/admin/projects"} style={{
             ...styles.glassCard, cursor: "pointer", marginBottom: 0, display: "flex", flexDirection: "column", gap: "14px",
             borderLeft: "5px solid #a78bfa", transition: "transform 0.2s, box-shadow 0.2s",
+            ...hiddenIfNoAccess("projects"),
           }}>
             <div style={{ fontSize: "2.2rem" }}>🛠</div>
             <h4 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#a78bfa" }}>Projects</h4>
@@ -676,6 +683,7 @@ function AdminDashboard() {
           <div className="stat-card" onClick={() => window.location.href = "/admin/prayer-requests"} style={{
             ...styles.glassCard, cursor: "pointer", marginBottom: 0, display: "flex", flexDirection: "column", gap: "14px",
             borderLeft: "5px solid #818cf8", transition: "transform 0.2s, box-shadow 0.2s",
+            ...hiddenIfNoAccess("prayerRequests"),
           }}>
             <div style={{ fontSize: "2.2rem" }}>🙏</div>
             <h4 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#818cf8" }}>Prayer Requests</h4>
@@ -691,6 +699,7 @@ function AdminDashboard() {
           <div className="stat-card" onClick={() => window.location.href = "/admin/transactions"} style={{
             ...styles.glassCard, cursor: "pointer", marginBottom: 0, display: "flex", flexDirection: "column", gap: "14px",
             borderLeft: "5px solid #34d399", transition: "transform 0.2s, box-shadow 0.2s",
+            ...hiddenIfNoAccess("transactions"),
           }}>
             <div style={{ fontSize: "2.2rem" }}>💰</div>
             <h4 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#34d399" }}>Transactions</h4>
@@ -706,6 +715,7 @@ function AdminDashboard() {
           <div className="stat-card" onClick={() => window.location.href = "/admin/members"} style={{
             ...styles.glassCard, cursor: "pointer", marginBottom: 0, display: "flex", flexDirection: "column", gap: "14px",
             borderLeft: "5px solid #fbbf24", transition: "transform 0.2s, box-shadow 0.2s",
+            ...hiddenIfNoAccess("members"),
           }}>
             <div style={{ fontSize: "2.2rem" }}>👥</div>
             <h4 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#fbbf24" }}>Members</h4>
@@ -721,6 +731,7 @@ function AdminDashboard() {
           <div className="stat-card" onClick={() => window.location.href = "/admin/baptism"} style={{
             ...styles.glassCard, cursor: "pointer", marginBottom: 0, display: "flex", flexDirection: "column", gap: "14px",
             borderLeft: "5px solid #0284c7", transition: "transform 0.2s, box-shadow 0.2s",
+            ...hiddenIfNoAccess("baptism"),
           }}>
             <div style={{ fontSize: "2.2rem" }}>💧</div>
             <h4 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#0284c7" }}>Baptisms</h4>
@@ -736,6 +747,7 @@ function AdminDashboard() {
           <div className="stat-card" onClick={() => window.location.href = "/admin/ministers"} style={{
             ...styles.glassCard, cursor: "pointer", marginBottom: 0, display: "flex", flexDirection: "column", gap: "14px",
             borderLeft: "5px solid #38bdf8", transition: "transform 0.2s, box-shadow 0.2s",
+            ...hiddenIfNoAccess("ministers"),
           }}>
             <div style={{ fontSize: "2.2rem" }}>🧑‍💼</div>
             <h4 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#38bdf8" }}>Ministers Photos</h4>
@@ -749,6 +761,7 @@ function AdminDashboard() {
           <div className="stat-card" onClick={() => window.location.href = "/admin/gallery"} style={{
             ...styles.glassCard, cursor: "pointer", marginBottom: 0, display: "flex", flexDirection: "column", gap: "14px",
             borderLeft: "5px solid #e879f9", transition: "transform 0.2s, box-shadow 0.2s",
+            ...hiddenIfNoAccess("gallery"),
           }}>
             <div style={{ fontSize: "2.2rem" }}>🖼</div>
             <h4 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#e879f9" }}>Gallery</h4>

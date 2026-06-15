@@ -28,7 +28,7 @@ function AdminPrayerRequests() {
       });
       setPrayerRequests(res.data);
     } catch (err) {
-      if (!handleAuthError(err)) console.log("Error fetching prayer requests:", err);
+      if (!handleAuthError(err)) setPrayerRequests([]);
     }
   };
 

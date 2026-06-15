@@ -28,6 +28,7 @@ import Careers from "./pages/Careers"
 import Opportunities from "./pages/Opportunities"
 import AdminGallery from "./pages/AdminGallery"
 import AdminMinisters from "./pages/AdminMinisters"
+import { canAccessAdminSection, clearAdminAuth, getAdminAuth } from "./adminAccess"
 
 // Protected Route for Members
 const MemberProtectedRoute = ({ children }) => {
@@ -38,6 +39,22 @@ const MemberProtectedRoute = ({ children }) => {
     localStorage.setItem("redirectAfterLogin", location.pathname);
     return <Navigate to="/login" replace />;
   }
+  return children;
+};
+
+const AdminProtectedRoute = ({ section, children }) => {
+  const { token, role } = getAdminAuth();
+  const location = useLocation();
+
+  if (!token || !role) {
+    clearAdminAuth();
+    return <Navigate to="/admin-login" replace state={{ from: location.pathname }} />;
+  }
+
+  if (!canAccessAdminSection(section)) {
+    return <Navigate to="/admin-dashboard" replace />;
+  }
+
   return children;
 };
 
@@ -59,9 +76,7 @@ function App() {
       .then((res) => {
         setServerMessage(res.data)
       })
-      .catch((err) => {
-        console.log(err)
-      })
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -327,15 +342,15 @@ function App() {
       <Route path="/online-service" element={<MemberProtectedRoute><OnlineService /></MemberProtectedRoute>} />
 
       {/* Admin Pages */}
-      <Route path="/admin-dashboard" element={<AdminDashboard />} />
-      <Route path="/admin/events" element={<AdminEvents />} />
-      <Route path="/admin/projects" element={<AdminProjects />} />
-      <Route path="/admin/prayer-requests" element={<AdminPrayerRequests />} />
-      <Route path="/admin/transactions" element={<AdminTransactions />} />
-      <Route path="/admin/members" element={<AdminMembers />} />
-      <Route path="/admin/baptism" element={<AdminBaptism />} />
-      <Route path="/admin/gallery" element={<AdminGallery />} />
-      <Route path="/admin/ministers" element={<AdminMinisters />} />
+      <Route path="/admin-dashboard" element={<AdminProtectedRoute section="dashboard"><AdminDashboard /></AdminProtectedRoute>} />
+      <Route path="/admin/events" element={<AdminProtectedRoute section="events"><AdminEvents /></AdminProtectedRoute>} />
+      <Route path="/admin/projects" element={<AdminProtectedRoute section="projects"><AdminProjects /></AdminProtectedRoute>} />
+      <Route path="/admin/prayer-requests" element={<AdminProtectedRoute section="prayerRequests"><AdminPrayerRequests /></AdminProtectedRoute>} />
+      <Route path="/admin/transactions" element={<AdminProtectedRoute section="transactions"><AdminTransactions /></AdminProtectedRoute>} />
+      <Route path="/admin/members" element={<AdminProtectedRoute section="members"><AdminMembers /></AdminProtectedRoute>} />
+      <Route path="/admin/baptism" element={<AdminProtectedRoute section="baptism"><AdminBaptism /></AdminProtectedRoute>} />
+      <Route path="/admin/gallery" element={<AdminProtectedRoute section="gallery"><AdminGallery /></AdminProtectedRoute>} />
+      <Route path="/admin/ministers" element={<AdminProtectedRoute section="ministers"><AdminMinisters /></AdminProtectedRoute>} />
     </Routes>
   )
 }

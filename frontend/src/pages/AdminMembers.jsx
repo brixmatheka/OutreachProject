@@ -208,9 +208,8 @@ function AdminMembers() {
         headers: { Authorization: token }
       });
       setActiveMembers(res.data);
-    } catch (err) {
+    } catch {
       setError("Failed to fetch members. Please ensure you are logged in.");
-      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -222,8 +221,8 @@ function AdminMembers() {
         headers: { Authorization: token }
       });
       setDeletedMembers(res.data);
-    } catch (err) {
-      console.error("Failed to fetch deleted members:", err);
+    } catch {
+      setDeletedMembers([]);
     }
   };
 

@@ -89,7 +89,7 @@ function AdminProjects() {
     try {
       const res = await axios.get("/projects");
       setProjects(res.data);
-    } catch (err) { console.log("Error fetching projects:", err); }
+    } catch { setProjects([]); }
   };
 
   useEffect(() => {

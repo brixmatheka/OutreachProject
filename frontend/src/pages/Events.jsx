@@ -370,8 +370,8 @@ function Events() {
         headers: { Authorization: token },
       });
       setUserProfile(res.data);
-    } catch (err) {
-      console.error("Error fetching user profile", err);
+    } catch {
+      setUserProfile(null);
     }
   };
 
@@ -393,8 +393,9 @@ function Events() {
 
       setEvents(activeEvents);
       setProjects(projRes.data);
-    } catch (err) {
-      console.error("Error fetching data:", err);
+    } catch {
+      setEvents([]);
+      setProjects([]);
     } finally {
       setLoading(false);
     }

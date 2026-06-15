@@ -1,6 +1,12 @@
 const { MongoClient, ServerApiVersion } = require('mongodb');
+const path = require("node:path");
 
-const uri = "mongodb://brixmatheka_db_user:DkDxDaUPJKWzPYVQc@cluster0-shard-00-00.k6ymqn.mongodb.net:27017,cluster0-shard-00-01.k6ymqn.mongodb.net:27017,cluster0-shard-00-02.k6ymqn.mongodb.net:27017/ohc_db?ssl=true&replicaSet=atlas-d8hhbv-shard-0&authSource=admin&retryWrites=true&w=majority&appName=Cluster0";
+require("dotenv").config({ path: path.join(__dirname, ".env") });
+
+const uri = process.env.MONGO_URI;
+if (!uri) {
+    throw new Error("MONGO_URI is required");
+}
 
 const client = new MongoClient(uri, {
     serverApi: {
@@ -14,10 +20,18 @@ async function run() {
     try {
         await client.connect();
         await client.db("admin").command({ ping: 1 });
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+        process.stdout.write("MongoDB ping succeeded.\n");
     } finally {
         await client.close();
     }
 }
 
-run().catch(console.dir);
+run().catch((err) => {
+    process.stderr.write(JSON.stringify({
+        level: "error",
+        message: "MongoDB ping failed",
+        errorName: err.name,
+        errorCode: err.code || "UNKNOWN"
+    }) + "\n");
+    process.exitCode = 1;
+});

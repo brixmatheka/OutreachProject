@@ -29,7 +29,7 @@ function BaptismRequest() {
       headers: { Authorization: token }
     })
       .then(res => setMyRequests(res.data))
-      .catch(err => console.error("Error fetching my requests:", err));
+      .catch(() => setMyRequests([]));
   };
 
   // Auto-fill form with logged-in member data on mount
@@ -150,7 +150,6 @@ function BaptismRequest() {
       const token = localStorage.getItem("memberToken");
       if (token) fetchMyRequests(token);
     } catch (err) {
-      console.error(err);
       // Try to map server error to a field
       const msg = err.response?.data?.message || "Something went wrong. Please try again.";
       if (msg.toLowerCase().includes("email") || msg.toLowerCase().includes("already have")) {

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import axios from "axios";
+import { clearAdminAuth, storeAdminAuth } from "../adminAccess";
 
 function AdminLogin() {
   const [credentials, setCredentials] = useState({ email: "", password: "" });
@@ -18,8 +19,8 @@ function AdminLogin() {
     setError("");
     try {
       const res = await axios.post("/admin/login", credentials);
-      localStorage.setItem("token", res.data.token);
-      localStorage.setItem("adminToken", res.data.token); // also store under "adminToken" for consistency
+      clearAdminAuth();
+      storeAdminAuth(res.data);
       window.location.href = "/admin-dashboard";
     } catch (err) {
       setError("Invalid email or password.");

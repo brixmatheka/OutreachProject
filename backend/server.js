@@ -88,6 +88,223 @@ import Minister from "./models/Minister.js";
 dotenv.config({ path: path.join(__dirname, ".env") });
 
 const app = express();
+const isProduction = process.env.NODE_ENV === "production";
+
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL?.toLowerCase();
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH;
+const JWT_SECRET = process.env.JWT_SECRET;
+const MEMBER_JWT_SECRET = process.env.MEMBER_JWT_SECRET;
+const MONGO_URI = process.env.MONGO_URI;
+
+const createErrorId = () =>
+  `err_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+const sensitiveLogKeys = [
+  "password",
+  "passwordhash",
+  "token",
+  "authorization",
+  "secret",
+  "email",
+  "phone",
+  "idno",
+  "session",
+  "receipt",
+  "mpesa",
+  "payment",
+  "mongo",
+  "uri",
+  "passkey",
+  "consumer"
+];
+
+function sanitizeLogMeta(meta) {
+  if (!meta || typeof meta !== "object") return {};
+
+  return Object.fromEntries(
+    Object.entries(meta).map(([key, value]) => {
+      const lowerKey = key.toLowerCase();
+      if (sensitiveLogKeys.some((sensitiveKey) => lowerKey.includes(sensitiveKey))) {
+        return [key, "[REDACTED]"];
+      }
+      if (value instanceof Error) {
+        return [key, { name: value.name, code: value.code || "UNKNOWN" }];
+      }
+      return [key, value];
+    })
+  );
+}
+
+function writeLog(level, message, meta = {}) {
+  const entry = {
+    timestamp: new Date().toISOString(),
+    level,
+    message,
+    ...sanitizeLogMeta(meta)
+  };
+
+  process.stdout.write(`${JSON.stringify(entry)}\n`);
+}
+
+function logInfo(message, meta) {
+  writeLog("info", message, meta);
+}
+
+function logWarn(message, meta) {
+  writeLog("warn", message, meta);
+}
+
+function logError(message, err, meta = {}) {
+  const errorId = createErrorId();
+  writeLog("error", message, {
+    errorId,
+    errorName: err?.name || "Error",
+    errorCode: err?.code || "UNKNOWN",
+    ...meta
+  });
+  return errorId;
+}
+
+function handleServerError(res, err, message = "Server error") {
+  const errorId = logError(message, err);
+  return res.status(500).json({ message, errorId });
+}
+
+function requireConfigValue(name, value) {
+  if (value) return;
+  const message = `${name} is required`;
+  if (isProduction) {
+    throw new Error(message);
+  }
+  logWarn(message);
+}
+
+const ROLES = Object.freeze({
+  SUPER_ADMIN: "super_admin",
+  TRANSACTIONS_ADMIN: "transactions_admin",
+  EVENTS_ADMIN: "events_admin",
+  MEDIA_PHOTOS_ADMIN: "media_photos_admin",
+  CONTENT_ADMIN: "content_admin"
+});
+
+const ROLE_LABELS = Object.freeze({
+  [ROLES.SUPER_ADMIN]: "Super Admin",
+  [ROLES.TRANSACTIONS_ADMIN]: "Transactions Admin",
+  [ROLES.EVENTS_ADMIN]: "Events Admin",
+  [ROLES.MEDIA_PHOTOS_ADMIN]: "Media/Photos Admin",
+  [ROLES.CONTENT_ADMIN]: "Content Admin"
+});
+
+const ADMIN_SECTION_ROLES = Object.freeze({
+  dashboard: Object.values(ROLES),
+  events: [ROLES.SUPER_ADMIN, ROLES.EVENTS_ADMIN],
+  transactions: [ROLES.SUPER_ADMIN, ROLES.TRANSACTIONS_ADMIN],
+  media: [ROLES.SUPER_ADMIN, ROLES.MEDIA_PHOTOS_ADMIN],
+  content: [ROLES.SUPER_ADMIN, ROLES.CONTENT_ADMIN],
+  members: [ROLES.SUPER_ADMIN]
+});
+
+const ROLE_PERMISSIONS = Object.freeze({
+  [ROLES.SUPER_ADMIN]: ["dashboard", "events", "transactions", "media", "content", "members"],
+  [ROLES.TRANSACTIONS_ADMIN]: ["dashboard", "transactions"],
+  [ROLES.EVENTS_ADMIN]: ["dashboard", "events"],
+  [ROLES.MEDIA_PHOTOS_ADMIN]: ["dashboard", "media"],
+  [ROLES.CONTENT_ADMIN]: ["dashboard", "content"]
+});
+
+const ROLE_ALIASES = Object.freeze({
+  "super admin": ROLES.SUPER_ADMIN,
+  super_admin: ROLES.SUPER_ADMIN,
+  superadmin: ROLES.SUPER_ADMIN,
+  "transactions admin": ROLES.TRANSACTIONS_ADMIN,
+  transactions_admin: ROLES.TRANSACTIONS_ADMIN,
+  transactions: ROLES.TRANSACTIONS_ADMIN,
+  "events admin": ROLES.EVENTS_ADMIN,
+  events_admin: ROLES.EVENTS_ADMIN,
+  events: ROLES.EVENTS_ADMIN,
+  "media/photos admin": ROLES.MEDIA_PHOTOS_ADMIN,
+  "media photos admin": ROLES.MEDIA_PHOTOS_ADMIN,
+  media_photos_admin: ROLES.MEDIA_PHOTOS_ADMIN,
+  media_admin: ROLES.MEDIA_PHOTOS_ADMIN,
+  media: ROLES.MEDIA_PHOTOS_ADMIN,
+  photos: ROLES.MEDIA_PHOTOS_ADMIN,
+  "content admin": ROLES.CONTENT_ADMIN,
+  content_admin: ROLES.CONTENT_ADMIN,
+  content: ROLES.CONTENT_ADMIN
+});
+
+function normalizeRole(role) {
+  if (!role || typeof role !== "string") return null;
+  return ROLE_ALIASES[role.trim().toLowerCase()] || null;
+}
+
+function getPermissionsForRole(role) {
+  return ROLE_PERMISSIONS[role] || [];
+}
+
+function parseAdminUsers() {
+  const users = [];
+
+  if (ADMIN_EMAIL && (ADMIN_PASSWORD || ADMIN_PASSWORD_HASH)) {
+    users.push({
+      email: ADMIN_EMAIL,
+      password: ADMIN_PASSWORD,
+      passwordHash: ADMIN_PASSWORD_HASH,
+      role: ROLES.SUPER_ADMIN,
+      name: ROLE_LABELS[ROLES.SUPER_ADMIN]
+    });
+  }
+
+  if (!process.env.ADMIN_USERS_JSON) {
+    return users;
+  }
+
+  try {
+    const parsedUsers = JSON.parse(process.env.ADMIN_USERS_JSON);
+    if (!Array.isArray(parsedUsers)) {
+      logWarn("ADMIN_USERS_JSON must be an array");
+      return users;
+    }
+
+    parsedUsers.forEach((user) => {
+      const role = normalizeRole(user.role);
+      if (!user.email || (!user.password && !user.passwordHash) || !role) {
+        logWarn("Invalid admin user configuration skipped");
+        return;
+      }
+
+      users.push({
+        email: String(user.email).toLowerCase(),
+        password: user.password,
+        passwordHash: user.passwordHash,
+        role,
+        name: user.name || ROLE_LABELS[role]
+      });
+    });
+  } catch (err) {
+    logError("Failed to parse ADMIN_USERS_JSON", err);
+  }
+
+  return users;
+}
+
+const configuredAdminUsers = parseAdminUsers();
+
+function validateStartupConfig() {
+  requireConfigValue("MONGO_URI", MONGO_URI);
+  requireConfigValue("JWT_SECRET", JWT_SECRET);
+  requireConfigValue("MEMBER_JWT_SECRET", MEMBER_JWT_SECRET);
+
+  if (isProduction) {
+    requireConfigValue("CLIENT_ORIGIN", process.env.CLIENT_ORIGIN);
+    if (configuredAdminUsers.length === 0) {
+      throw new Error("At least one admin account must be configured");
+    }
+  }
+}
+
+validateStartupConfig();
 
 // Ensure uploads directory exists
 const uploadsDir = process.env.UPLOAD_DIR
@@ -134,11 +351,9 @@ app.use(express.json());
 app.use("/uploads", express.static(uploadsDir));
 
 /* MongoDB Connection */
-console.log("Loaded MONGO_URI:", process.env.MONGO_URI);
-
-mongoose.connect(process.env.MONGO_URI)
+mongoose.connect(MONGO_URI)
   .then(async () => {
-    console.log("✅ MongoDB Connected");
+    logInfo("MongoDB connected");
     // One-time update for specific female members
     try {
       const femaleNames = ["cate", "rose", "mary", "ruth", "ketase"];
@@ -151,9 +366,9 @@ mongoose.connect(process.env.MONGO_URI)
         },
         { gender: "Female" }
       );
-      console.log("Database update genders to Female result:", updateResult);
+      logInfo("Member gender maintenance completed", { modifiedCount: updateResult.modifiedCount });
     } catch (updateErr) {
-      console.error("Failed to update female genders:", updateErr.message);
+      logError("Member gender maintenance failed", updateErr);
     }
 
     // Migration to populate empty completed transaction receipt numbers
@@ -169,7 +384,7 @@ mongoose.connect(process.env.MONGO_URI)
       });
 
       if (missingReceiptTransactions.length > 0) {
-        console.log(`Found ${missingReceiptTransactions.length} completed transactions with missing receipt numbers. Migrating...`);
+        logInfo("Transaction receipt migration started", { count: missingReceiptTransactions.length });
         const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         for (const t of missingReceiptTransactions) {
           let mockReceipt = "NL";
@@ -179,17 +394,17 @@ mongoose.connect(process.env.MONGO_URI)
           t.mpesaReceiptNumber = mockReceipt;
           await t.save();
         }
-        console.log("✅ Migration of completed transaction receipt numbers successful!");
+        logInfo("Transaction receipt migration completed");
       }
     } catch (migErr) {
-      console.error("Failed to migrate transaction receipt numbers:", migErr.message);
+      logError("Transaction receipt migration failed", migErr);
     }
 
     // Migration to sync completed baptism requests with member records
     try {
       const completedBaptisms = await BaptismRequest.find({ status: "Completed" });
       if (completedBaptisms.length > 0) {
-        console.log(`Found ${completedBaptisms.length} completed baptisms. Syncing with member records...`);
+        logInfo("Baptism member sync started", { count: completedBaptisms.length });
         let syncedCount = 0;
         for (const req of completedBaptisms) {
           const result = await Member.findOneAndUpdate(
@@ -199,18 +414,18 @@ mongoose.connect(process.env.MONGO_URI)
           if (result) syncedCount++;
         }
         if (syncedCount > 0) {
-          console.log(`✅ Successfully synced ${syncedCount} member baptism records from Completed requests!`);
+          logInfo("Baptism member sync completed", { count: syncedCount });
         }
       }
     } catch (syncErr) {
-      console.error("Failed to sync member baptism records:", syncErr.message);
+      logError("Baptism member sync failed", syncErr);
     }
 
     // Migration: Convert single Media items to Folder Media items
     try {
       const oldMediaItems = await Media.find({ files: { $exists: false } });
       if (oldMediaItems.length > 0) {
-        console.log(`Found ${oldMediaItems.length} old media items. Migrating to folder structure...`);
+        logInfo("Media folder migration started", { count: oldMediaItems.length });
         for (const item of oldMediaItems) {
           const title = item.title || item.folder || `Upload - ${item.uploadedAt ? new Date(item.uploadedAt).toLocaleDateString("en-KE") : new Date().toLocaleDateString("en-KE")}`;
           const files = [{
@@ -230,13 +445,13 @@ mongoose.connect(process.env.MONGO_URI)
             }
           });
         }
-        console.log("✅ Media migration successful!");
+        logInfo("Media folder migration completed");
       }
     } catch (migErr) {
-      console.error("Failed to migrate media items:", migErr.message);
+      logError("Media folder migration failed", migErr);
     }
   })
-  .catch(err => console.error("❌ MongoDB Error:", err.message));
+  .catch(err => logError("MongoDB connection failed", err));
 
 /* TEST ROUTE */
 app.get("/", (req, res) => {
@@ -250,7 +465,6 @@ app.get("/", (req, res) => {
 /* MEMBER SIGNUP */
 app.post("/auth/signup", async (req, res) => {
   try {
-    console.log("Signup Request Body:", req.body);
     const { firstName, lastName, email, phone, gender, age, dateOfBirth, idNo, isBaptized, password } = req.body;
 
     const missingFields = [];
@@ -302,13 +516,14 @@ app.post("/auth/signup", async (req, res) => {
     });
     await member.save();
 
-    const token = jwt.sign({ id: member._id, email: member.email }, "membersecretkey", { expiresIn: "7d" });
+    const token = jwt.sign({ id: member._id, email: member.email }, MEMBER_JWT_SECRET, { expiresIn: "7d" });
+    logInfo("User registration successful");
     res.status(201).json({
       token,
       member: { id: member._id, memberId: member.memberId, firstName: member.firstName, lastName: member.lastName, email: member.email, phone: member.phone, idNo: member.idNo },
     });
   } catch (err) {
-    res.status(500).json({ message: "Server error: " + err.message });
+    handleServerError(res, err);
   }
 });
 
@@ -321,6 +536,7 @@ app.post("/auth/login", async (req, res) => {
     }
     const member = await Member.findOne({ email: email.toLowerCase() });
     if (!member) {
+      logWarn("Authentication failed", { area: "member" });
       return res.status(401).json({ message: "Invalid email or password." });
     }
     if (member.isDeleted) {
@@ -328,81 +544,111 @@ app.post("/auth/login", async (req, res) => {
     }
     const valid = await bcrypt.compare(password, member.passwordHash);
     if (!valid) {
+      logWarn("Authentication failed", { area: "member" });
       return res.status(401).json({ message: "Invalid email or password." });
     }
-    const token = jwt.sign({ id: member._id, email: member.email }, "membersecretkey", { expiresIn: "7d" });
+    const token = jwt.sign({ id: member._id, email: member.email }, MEMBER_JWT_SECRET, { expiresIn: "7d" });
+    logInfo("User login successful");
     res.json({
       token,
       member: { id: member._id, memberId: member.memberId, firstName: member.firstName, lastName: member.lastName, email: member.email, phone: member.phone },
     });
   } catch (err) {
-    res.status(500).json({ message: "Server error: " + err.message });
+    handleServerError(res, err);
   }
 });
 
 /* GET ALL MEMBERS (admin only) */
-app.get("/auth/members", verifyToken, async (req, res) => {
+app.get("/auth/members", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN), async (req, res) => {
   try {
     const members = await Member.find({ isDeleted: { $ne: true } }).sort({ createdAt: -1 }).select("-passwordHash");
     res.json(members);
   } catch (err) {
-    res.status(500).json({ message: "Server error: " + err.message });
+    handleServerError(res, err);
   }
 });
 
 /* GET DELETED MEMBERS (admin only) */
-app.get("/auth/members/deleted", verifyToken, async (req, res) => {
+app.get("/auth/members/deleted", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN), async (req, res) => {
   try {
     const deleted = await Member.find({ isDeleted: true }).sort({ updatedAt: -1 }).select("-passwordHash");
     res.json(deleted);
   } catch (err) {
-    res.status(500).json({ message: "Server error: " + err.message });
+    handleServerError(res, err);
   }
 });
 
 /* DELETE MEMBER (soft delete, admin only) */
-app.delete("/auth/members/:id", verifyToken, async (req, res) => {
+app.delete("/auth/members/:id", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN), async (req, res) => {
   try {
     const member = await Member.findByIdAndUpdate(req.params.id, { isDeleted: true }, { new: true });
     if (!member) return res.status(404).json({ message: "Member not found" });
     res.json({ message: "Member successfully deleted" });
   } catch (err) {
-    res.status(500).json({ message: "Server error: " + err.message });
+    handleServerError(res, err);
   }
 });
 
 /* RESTORE DELETED MEMBER (admin only) */
-app.patch("/auth/members/:id/restore", verifyToken, async (req, res) => {
+app.patch("/auth/members/:id/restore", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN), async (req, res) => {
   try {
     const member = await Member.findByIdAndUpdate(req.params.id, { isDeleted: false }, { new: true });
     if (!member) return res.status(404).json({ message: "Member not found" });
     res.json({ message: "Member successfully restored" });
   } catch (err) {
-    res.status(500).json({ message: "Server error: " + err.message });
+    handleServerError(res, err);
   }
 });
 
-// Retrieve the variables from your hidden .env file
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-const JWT_SECRET = process.env.JWT_SECRET;
+async function verifyAdminPassword(account, password) {
+  if (account.passwordHash) {
+    return bcrypt.compare(password, account.passwordHash);
+  }
 
-app.post("/admin/login", (req, res) => {
+  return Boolean(account.password && account.password === password);
+}
+
+app.post("/admin/login", async (req, res) => {
   const { email, password } = req.body;
 
-  //login
-  if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-    const token = jwt.sign({ email }, JWT_SECRET, { expiresIn: "8h" });
-    res.json({ token });
-  } else {
-    res.status(401).json({ message: "Invalid credentials" });
+  if (!email || !password) {
+    return res.status(400).json({ message: "Email and password are required." });
   }
+
+  const adminAccount = configuredAdminUsers.find(
+    (account) => account.email === String(email).toLowerCase()
+  );
+
+  if (!adminAccount || !(await verifyAdminPassword(adminAccount, password))) {
+    logWarn("Authentication failed", { area: "admin" });
+    res.status(401).json({ message: "Invalid credentials" });
+    return;
+  }
+
+  const role = normalizeRole(adminAccount.role);
+  const permissions = getPermissionsForRole(role);
+  const token = jwt.sign(
+    { role, email: adminAccount.email, name: adminAccount.name },
+    JWT_SECRET,
+    { expiresIn: "8h" }
+  );
+
+  logInfo("Admin login successful", { role });
+  res.json({
+    token,
+    admin: {
+      name: adminAccount.name,
+      role,
+      roleLabel: ROLE_LABELS[role],
+      permissions
+    }
+  });
 });
 /* TOKEN MIDDLEWARE (Admin) */
 function verifyToken(req, res, next) {
   let token = req.headers.authorization;
   if (!token) {
-    console.warn(`[verifyToken] ❌ No token provided on ${req.method} ${req.path}`);
+    logWarn("Authentication required", { area: "admin", method: req.method, path: req.path });
     return res.status(403).json({ message: "No token provided" });
   }
 
@@ -411,18 +657,43 @@ function verifyToken(req, res, next) {
     token = token.slice(7);
   }
 
-  console.log(`[verifyToken] Verifying token on ${req.method} ${req.path} | token prefix: ${token.substring(0, 20)}...`);
-
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
     if (err) {
-      console.error(`[verifyToken] ❌ JWT error: ${err.name} — ${err.message}`);
-      return res.status(401).json({ message: "Admin session expired. Please log in again.", detail: err.message });
+      logWarn("Authentication failed", { area: "admin", reason: err.name });
+      return res.status(401).json({ message: "Admin session expired. Please log in again." });
     }
-    console.log(`[verifyToken] ✅ Token valid, email: ${decoded.email}`);
-    req.admin = decoded;
+
+    const role =
+      normalizeRole(decoded.role) ||
+      (decoded.email && String(decoded.email).toLowerCase() === ADMIN_EMAIL ? ROLES.SUPER_ADMIN : null);
+
+    if (!role) {
+      logWarn("Authorization failed", { area: "admin", reason: "missing-role" });
+      return res.status(403).json({ message: "Admin role is not authorized." });
+    }
+
+    req.admin = {
+      ...decoded,
+      role,
+      permissions: getPermissionsForRole(role)
+    };
     next();
   });
 }
+
+function requireAdminRoles(...allowedRoles) {
+  const normalizedAllowedRoles = allowedRoles.map(normalizeRole).filter(Boolean);
+
+  return (req, res, next) => {
+    if (!req.admin?.role || !normalizedAllowedRoles.includes(req.admin.role)) {
+      logWarn("Authorization failed", { area: "admin", role: req.admin?.role || "unknown" });
+      return res.status(403).json({ message: "You are not authorized to access this resource." });
+    }
+
+    next();
+  };
+}
+
 /* TOKEN MIDDLEWARE (Member) */
 function verifyMemberToken(req, res, next) {
   let token = req.headers.authorization;
@@ -433,7 +704,7 @@ function verifyMemberToken(req, res, next) {
     token = token.slice(7);
   }
 
-  jwt.verify(token, "membersecretkey", (err, decoded) => {
+  jwt.verify(token, MEMBER_JWT_SECRET, (err, decoded) => {
     if (err) return res.status(401).json({ message: "Session expired. Please log in again." });
     req.member = decoded;
     next();
@@ -447,16 +718,20 @@ app.get("/auth/me", verifyMemberToken, async (req, res) => {
     if (!member || member.isDeleted) return res.status(404).json({ message: "Member not found" });
     res.json(member);
   } catch (err) {
-    res.status(500).json({ message: "Server error: " + err.message });
+    handleServerError(res, err);
   }
 });
 
 /* CREATE EVENT */
-app.post("/events", verifyToken, async (req, res) => {
-  const eventCode = "EVT-" + Math.floor(1000 + Math.random() * 9000);
-  const event = new Event({ ...req.body, eventCode });
-  await event.save();
-  res.send("Event created");
+app.post("/events", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.EVENTS_ADMIN), async (req, res) => {
+  try {
+    const eventCode = "EVT-" + Math.floor(1000 + Math.random() * 9000);
+    const event = new Event({ ...req.body, eventCode });
+    await event.save();
+    res.send("Event created");
+  } catch (err) {
+    handleServerError(res, err);
+  }
 });
 
 /* GET EVENTS */
@@ -496,7 +771,7 @@ app.get("/events", async (req, res) => {
 
     res.json(updatedEvents);
   } catch (err) {
-    res.status(500).json({ message: "Server error: " + err.message });
+    handleServerError(res, err);
   }
 });
 
@@ -545,14 +820,18 @@ app.post("/events/:id/attend", async (req, res) => {
 
     res.json({ message: "Attendance confirmed", attendeesCount: event.attendeesCount });
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    handleServerError(res, err);
   }
 });
 
 /* DELETE EVENT */
-app.delete("/events/:id", verifyToken, async (req, res) => {
-  await Event.findByIdAndDelete(req.params.id);
-  res.send("Event deleted");
+app.delete("/events/:id", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.EVENTS_ADMIN), async (req, res) => {
+  try {
+    await Event.findByIdAndDelete(req.params.id);
+    res.send("Event deleted");
+  } catch (err) {
+    handleServerError(res, err);
+  }
 });
 
 /* PROJECTS */
@@ -561,26 +840,26 @@ app.get("/projects", async (req, res) => {
     const projects = await Project.find().sort({ createdAt: -1 });
     res.json(projects);
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    handleServerError(res, err);
   }
 });
 
-app.post("/projects", verifyToken, async (req, res) => {
+app.post("/projects", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.CONTENT_ADMIN), async (req, res) => {
   try {
     const project = new Project(req.body);
     await project.save();
     res.status(201).json({ message: "Project created" });
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    handleServerError(res, err);
   }
 });
 
-app.delete("/projects/:id", verifyToken, async (req, res) => {
+app.delete("/projects/:id", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.CONTENT_ADMIN), async (req, res) => {
   try {
     await Project.findByIdAndDelete(req.params.id);
     res.json({ message: "Project deleted" });
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    handleServerError(res, err);
   }
 });
 
@@ -598,38 +877,38 @@ app.post("/prayer-requests", async (req, res) => {
 
     res.status(201).json({ message: "Prayer request submitted successfully" });
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    handleServerError(res, err);
   }
 });
 
 /* GET ALL PRAYER REQUESTS (admin only) */
-app.get("/prayer-requests", verifyToken, async (req, res) => {
+app.get("/prayer-requests", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.CONTENT_ADMIN), async (req, res) => {
   try {
     const prayerRequests = await PrayerRequest.find().sort({ createdAt: -1 });
     res.json(prayerRequests);
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    handleServerError(res, err);
   }
 });
 
 /* DELETE PRAYER REQUEST (admin only) */
-app.delete("/prayer-requests/:id", verifyToken, async (req, res) => {
+app.delete("/prayer-requests/:id", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.CONTENT_ADMIN), async (req, res) => {
   try {
     await PrayerRequest.findByIdAndDelete(req.params.id);
     res.json({ message: "Prayer request deleted" });
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    handleServerError(res, err);
   }
 });
 
 /* UPDATE PRAYER REQUEST READ STATUS (admin only) */
-app.patch("/prayer-requests/:id/read", verifyToken, async (req, res) => {
+app.patch("/prayer-requests/:id/read", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.CONTENT_ADMIN), async (req, res) => {
   try {
     const { isRead } = req.body;
     await PrayerRequest.findByIdAndUpdate(req.params.id, { isRead });
     res.json({ message: "Prayer request status updated" });
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    handleServerError(res, err);
   }
 });
 
@@ -706,7 +985,7 @@ app.post("/api/baptism-requests", async (req, res) => {
 
     res.status(201).json({ message: "Baptism request submitted successfully" });
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    handleServerError(res, err);
   }
 });
 
@@ -716,7 +995,7 @@ app.get("/api/my-baptism-requests", verifyMemberToken, async (req, res) => {
     const requests = await BaptismRequest.find({ email: req.member.email.toLowerCase() }).sort({ createdAt: -1 });
     res.json(requests);
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    handleServerError(res, err);
   }
 });
 
@@ -770,22 +1049,22 @@ app.patch("/api/my-baptism-requests/:id", verifyMemberToken, async (req, res) =>
     await request.save();
     res.json({ message: "Baptism request updated successfully.", request });
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    handleServerError(res, err);
   }
 });
 
 /* GET ALL BAPTISM REQUESTS (admin only) */
-app.get("/api/admin/baptism-requests", verifyToken, async (req, res) => {
+app.get("/api/admin/baptism-requests", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.CONTENT_ADMIN), async (req, res) => {
   try {
     const baptismRequests = await BaptismRequest.find().sort({ createdAt: -1 });
     res.json(baptismRequests);
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    handleServerError(res, err);
   }
 });
 
 /* UPDATE BAPTISM REQUEST STATUS (admin only) */
-app.patch("/api/admin/baptism-requests/:id/status", verifyToken, async (req, res) => {
+app.patch("/api/admin/baptism-requests/:id/status", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.CONTENT_ADMIN), async (req, res) => {
   try {
     const { status } = req.body;
     if (!status || !["Pending", "Completed"].includes(status)) {
@@ -802,12 +1081,12 @@ app.patch("/api/admin/baptism-requests/:id/status", verifyToken, async (req, res
     );
     res.json({ message: "Baptism request status updated", status });
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    handleServerError(res, err);
   }
 });
 
 /* DELETE BAPTISM REQUEST (admin only) */
-app.delete("/api/admin/baptism-requests/:id", verifyToken, async (req, res) => {
+app.delete("/api/admin/baptism-requests/:id", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.CONTENT_ADMIN), async (req, res) => {
   try {
     const request = await BaptismRequest.findById(req.params.id);
     if (request) {
@@ -821,7 +1100,7 @@ app.delete("/api/admin/baptism-requests/:id", verifyToken, async (req, res) => {
     }
     res.json({ message: "Baptism request deleted" });
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    handleServerError(res, err);
   }
 });
 
@@ -833,6 +1112,10 @@ app.delete("/api/admin/baptism-requests/:id", verifyToken, async (req, res) => {
 async function getMpesaToken() {
   const key = process.env.MPESA_CONSUMER_KEY;
   const secret = process.env.MPESA_CONSUMER_SECRET;
+  if (!key || !secret) {
+    throw new Error("M-Pesa credentials are not configured");
+  }
+
   const auth = Buffer.from(`${key}:${secret}`).toString("base64");
   const env = process.env.MPESA_ENV === "production" ? "api" : "sandbox";
 
@@ -841,7 +1124,7 @@ async function getMpesaToken() {
     { headers: { Authorization: `Basic ${auth}` } }
   );
   const data = await res.json();
-  if (!data.access_token) throw new Error("Failed to get M-Pesa token: " + JSON.stringify(data));
+  if (!data.access_token) throw new Error("Failed to get M-Pesa token");
   return data.access_token;
 }
 
@@ -872,6 +1155,10 @@ app.post("/api/stkpush", async (req, res) => {
 
     const shortcode = process.env.MPESA_SHORTCODE;
     const passkey = process.env.MPESA_PASSKEY;
+    if (!shortcode || !passkey || !process.env.MPESA_CALLBACK_URL) {
+      return res.status(503).json({ message: "Payment service is not configured." });
+    }
+
     const password = Buffer.from(shortcode + passkey + timestamp).toString("base64");
     const env = process.env.MPESA_ENV === "production" ? "api" : "sandbox";
 
@@ -904,7 +1191,9 @@ app.post("/api/stkpush", async (req, res) => {
     );
 
     const result = await mpesaRes.json();
-    console.log("STK Push result:", result);
+    logInfo("M-Pesa STK push completed", {
+      responseCode: result.ResponseCode || result.errorCode || "UNKNOWN"
+    });
 
     if (result.ResponseCode === "0") {
       // Save pending transaction to DB
@@ -929,8 +1218,7 @@ app.post("/api/stkpush", async (req, res) => {
       return res.status(400).json({ message: result.errorMessage || "STK Push failed. Try again." });
     }
   } catch (err) {
-    console.error("M-Pesa error:", err.message);
-    res.status(500).json({ message: "Server error: " + err.message });
+    handleServerError(res, err, "Payment request failed");
   }
 });
 
@@ -939,16 +1227,16 @@ app.post("/api/mpesa/callback", async (req, res) => {
   try {
     const { Body } = req.body;
     if (!Body || !Body.stkCallback) {
-      console.log("Invalid M-Pesa Callback format:", JSON.stringify(req.body, null, 2));
+      logWarn("Invalid M-Pesa callback format");
       return res.status(400).json({ ResultCode: 1, ResultDesc: "Invalid body format" });
     }
 
     const stkCallback = Body.stkCallback;
-    console.log("M-Pesa Callback Received:", JSON.stringify(Body, null, 2));
 
     const checkoutRequestId = stkCallback.CheckoutRequestID;
     const resultCode = stkCallback.ResultCode;
     const resultDesc = stkCallback.ResultDesc;
+    logInfo("M-Pesa callback received", { resultCode });
 
     const updateData = {
       resultCode,
@@ -966,25 +1254,25 @@ app.post("/api/mpesa/callback", async (req, res) => {
     const updatedTransaction = await Transaction.findOneAndUpdate({ checkoutRequestId }, updateData, { new: true });
 
     if (updatedTransaction) {
-      console.log(`✅ Transaction updated: ${checkoutRequestId} -> ${updateData.status}`);
+      logInfo("Payment transaction updated", { status: updateData.status });
     } else {
-      console.log(`❌ Transaction NOT found in DB: ${checkoutRequestId}`);
+      logWarn("Payment callback did not match a transaction");
     }
 
     res.json({ ResultCode: 0, ResultDesc: "Accepted" });
   } catch (err) {
-    console.error("Callback processing error:", err.message);
+    logError("M-Pesa callback processing failed", err);
     res.status(500).json({ ResultCode: 1, ResultDesc: "Internal Server Error" });
   }
 });
 
 // GET Transactions (Admin only)
-app.get("/api/admin/transactions", verifyToken, async (req, res) => {
+app.get("/api/admin/transactions", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.TRANSACTIONS_ADMIN), async (req, res) => {
   try {
     const transactions = await Transaction.find().sort({ createdAt: -1 });
     res.json(transactions);
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    handleServerError(res, err);
   }
 });
 
@@ -1034,7 +1322,9 @@ app.get("/api/transactions/status/:checkoutRequestId", async (req, res) => {
           );
 
           const result = await mpesaRes.json();
-          console.log("STK Query result:", result);
+          logInfo("M-Pesa STK query completed", {
+            resultCode: result.ResultCode || result.ResponseCode || result.errorCode || "UNKNOWN"
+          });
 
           const isProcessing =
             result.ResultCode === "103" ||
@@ -1058,7 +1348,7 @@ app.get("/api/transactions/status/:checkoutRequestId", async (req, res) => {
             await transaction.save();
           } else if (isProcessing) {
             // Still processing: do not change status, keep it "Pending" so polling continues
-            console.log(`STK Query: Transaction ${req.params.checkoutRequestId} is still processing...`);
+            logInfo("M-Pesa transaction is still processing");
           } else if (result.ResultCode !== undefined && result.ResultCode !== null) {
             transaction.status = "Failed";
             transaction.resultDesc = result.ResultDesc || result.ResponseDescription || "Transaction failed";
@@ -1071,7 +1361,7 @@ app.get("/api/transactions/status/:checkoutRequestId", async (req, res) => {
           }
         }
       } catch (queryErr) {
-        console.error("STK Query error:", queryErr.message);
+        logError("M-Pesa STK query failed", queryErr);
       }
     }
 
@@ -1081,7 +1371,7 @@ app.get("/api/transactions/status/:checkoutRequestId", async (req, res) => {
       mpesaReceiptNumber: transaction.mpesaReceiptNumber
     });
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    handleServerError(res, err);
   }
 });
 
@@ -1090,7 +1380,7 @@ app.get("/api/transactions/status/:checkoutRequestId", async (req, res) => {
    ───────────────────────────────────────────────────────────────── */
 
 /* UPLOAD MEDIA (admin only — up to 1000 files per request) */
-app.post("/api/gallery/upload", verifyToken, upload.array("media", 1000), async (req, res) => {
+app.post("/api/gallery/upload", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.MEDIA_PHOTOS_ADMIN), upload.array("media", 1000), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ message: "No files uploaded." });
@@ -1115,7 +1405,7 @@ app.post("/api/gallery/upload", verifyToken, upload.array("media", 1000), async 
     await media.save();
     res.status(201).json({ message: "Media uploaded successfully.", item: media });
   } catch (err) {
-    res.status(500).json({ message: "Server error: " + err.message });
+    handleServerError(res, err);
   }
 });
 
@@ -1125,20 +1415,17 @@ app.get("/api/gallery", async (req, res) => {
     const items = await Media.find().sort({ uploadedAt: -1 });
     res.json(items);
   } catch (err) {
-    res.status(500).json({ message: "Server error: " + err.message });
+    handleServerError(res, err);
   }
 });
 
 /* DELETE GALLERY MEDIA (admin only) */
-app.delete("/api/gallery/:id", verifyToken, async (req, res) => {
+app.delete("/api/gallery/:id", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.MEDIA_PHOTOS_ADMIN), async (req, res) => {
   try {
-    console.log(`[Gallery DELETE] Attempting to delete id: ${req.params.id}`);
     const media = await Media.findById(req.params.id);
     if (!media) {
-      console.log(`[Gallery DELETE] Media not found: ${req.params.id}`);
       return res.status(404).json({ message: "Media not found." });
     }
-    console.log(`[Gallery DELETE] Found folder: "${media.title}", files: ${media.files?.length || 0}`);
 
     // Remove all files from disk
     if (media.files && media.files.length > 0) {
@@ -1147,20 +1434,18 @@ app.delete("/api/gallery/:id", verifyToken, async (req, res) => {
         if (fs.existsSync(filePath)) {
           try {
             fs.unlinkSync(filePath);
-            console.log(`[Gallery DELETE] Deleted file: ${filePath}`);
           } catch (err) {
-            console.error("Failed to delete file from disk:", filePath, err.message);
+            logError("Failed to delete media file from disk", err);
           }
         }
       });
     }
 
     await media.deleteOne();
-    console.log(`[Gallery DELETE] ✅ Folder deleted successfully: ${req.params.id}`);
+    logInfo("Media folder deleted", { fileCount: media.files?.length || 0 });
     res.json({ message: "Media folder deleted successfully." });
   } catch (err) {
-    console.error(`[Gallery DELETE] ❌ Error: ${err.message}`);
-    res.status(500).json({ message: "Server error: " + err.message });
+    handleServerError(res, err);
   }
 });
 
@@ -1174,12 +1459,12 @@ app.get("/api/ministers", async (req, res) => {
     const ministers = await Minister.find().sort({ order: 1, createdAt: 1 });
     res.json(ministers);
   } catch (err) {
-    res.status(500).json({ message: "Server error: " + err.message });
+    handleServerError(res, err);
   }
 });
 
 /* CREATE MINISTER WITH PHOTO (admin only) */
-app.post("/api/ministers", verifyToken, upload.single("photo"), async (req, res) => {
+app.post("/api/ministers", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.MEDIA_PHOTOS_ADMIN), upload.single("photo"), async (req, res) => {
   try {
     const { name, role, bio, order } = req.body;
     if (!name || !role) return res.status(400).json({ message: "Name and role are required." });
@@ -1195,12 +1480,12 @@ app.post("/api/ministers", verifyToken, upload.single("photo"), async (req, res)
     await minister.save();
     res.status(201).json(minister);
   } catch (err) {
-    res.status(500).json({ message: "Server error: " + err.message });
+    handleServerError(res, err);
   }
 });
 
 /* UPDATE MINISTER (admin only — can replace photo) */
-app.put("/api/ministers/:id", verifyToken, upload.single("photo"), async (req, res) => {
+app.put("/api/ministers/:id", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.MEDIA_PHOTOS_ADMIN), upload.single("photo"), async (req, res) => {
   try {
     const minister = await Minister.findById(req.params.id);
     if (!minister) return res.status(404).json({ message: "Minister not found." });
@@ -1225,12 +1510,12 @@ app.put("/api/ministers/:id", verifyToken, upload.single("photo"), async (req, r
     await minister.save();
     res.json(minister);
   } catch (err) {
-    res.status(500).json({ message: "Server error: " + err.message });
+    handleServerError(res, err);
   }
 });
 
 /* DELETE MINISTER (admin only) */
-app.delete("/api/ministers/:id", verifyToken, async (req, res) => {
+app.delete("/api/ministers/:id", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.MEDIA_PHOTOS_ADMIN), async (req, res) => {
   try {
     const minister = await Minister.findById(req.params.id);
     if (!minister) return res.status(404).json({ message: "Minister not found." });
@@ -1245,7 +1530,7 @@ app.delete("/api/ministers/:id", verifyToken, async (req, res) => {
     await minister.deleteOne();
     res.json({ message: "Minister deleted." });
   } catch (err) {
-    res.status(500).json({ message: "Server error: " + err.message });
+    handleServerError(res, err);
   }
 });
 
@@ -1253,5 +1538,5 @@ app.delete("/api/ministers/:id", verifyToken, async (req, res) => {
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on port ${PORT}`);
+  logInfo("Server started", { port: PORT });
 });

@@ -162,8 +162,6 @@ export default function AdminGallery() {
       const status  = err.response?.status;
       const message = err.response?.data?.message || err.message || "Delete failed.";
 
-      console.error("[Delete Folder] Error:", status, message);
-
       if (status === 401 || status === 403) {
         showToast("Session expired — please log in again.", "error");
         setTimeout(() => { window.location.href = "/admin-login"; }, 1500);

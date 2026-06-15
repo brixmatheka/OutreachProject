@@ -159,7 +159,7 @@ function AdminTransactions() {
     try {
       const res = await axios.get("/api/admin/transactions", { headers: { Authorization: token } });
       setTransactions(res.data);
-    } catch (err) { console.log("Error fetching transactions:", err); }
+    } catch { setTransactions([]); }
   };
 
   useEffect(() => { if (token) fetchTransactions(); else navigate("/admin-login"); }, [token]);

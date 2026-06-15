@@ -112,7 +112,6 @@ function AdminBaptism() {
       } else {
         setError("Failed to fetch baptism requests.");
       }
-      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -132,7 +131,6 @@ function AdminBaptism() {
       } else {
         alert("Error updating status: " + (err.response?.data?.message || err.message));
       }
-      console.error(err);
     }
   };
 
@@ -156,7 +154,6 @@ function AdminBaptism() {
       } else {
         alert("Error deleting request: " + (err.response?.data?.message || err.message));
       }
-      console.error(err);
     }
   };
 
