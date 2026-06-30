@@ -22,6 +22,7 @@ export const ADMIN_SECTION_ROLES = Object.freeze({
   transactions: [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.TRANSACTIONS_ADMIN],
   members: [ADMIN_ROLES.SUPER_ADMIN],
   baptism: [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.CONTENT_ADMIN],
+  sermons: [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.CONTENT_ADMIN],
   gallery: [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.MEDIA_PHOTOS_ADMIN],
   ministers: [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.MEDIA_PHOTOS_ADMIN],
 });
@@ -36,7 +37,7 @@ export function getAdminAuth() {
   }
 
   return {
-    token: localStorage.getItem("adminToken") || localStorage.getItem("token"),
+    token: localStorage.getItem("adminSession") ? "cookie-session" : null,
     role: localStorage.getItem("adminRole"),
     roleLabel: localStorage.getItem("adminRoleLabel"),
     permissions,
@@ -49,14 +50,11 @@ export function canAccessAdminSection(section) {
 }
 
 export function storeAdminAuth(data) {
-  const token = data?.token;
   const admin = data?.admin || {};
 
-  if (token) {
-    localStorage.setItem("token", token);
-    localStorage.setItem("adminToken", token);
-  }
-
+  localStorage.setItem("adminSession", "true");
+  localStorage.setItem("token", "cookie-session");
+  localStorage.setItem("adminToken", "cookie-session");
   if (admin.role) localStorage.setItem("adminRole", admin.role);
   if (admin.roleLabel) localStorage.setItem("adminRoleLabel", admin.roleLabel);
   if (admin.name) localStorage.setItem("adminName", admin.name);
@@ -66,6 +64,7 @@ export function storeAdminAuth(data) {
 export function clearAdminAuth() {
   localStorage.removeItem("token");
   localStorage.removeItem("adminToken");
+  localStorage.removeItem("adminSession");
   localStorage.removeItem("adminRole");
   localStorage.removeItem("adminRoleLabel");
   localStorage.removeItem("adminName");

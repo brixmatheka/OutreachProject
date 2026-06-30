@@ -159,10 +159,20 @@ const GlobalStyle = () => (
   `}</style>
 );
 
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
 function AdminEvents() {
-  const [title, setTitle] = useState("");
+const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [description, setDescription] = useState("");
+  const [bannerFile, setBannerFile] = useState(null);
+  const [bannerPreview, setBannerPreview] = useState("");
   const [events, setEvents] = useState([]);
 
   // Report Filters
@@ -172,7 +182,6 @@ function AdminEvents() {
   const [endDate, setEndDate] = useState("");
   const [showAttendeesFor, setShowAttendeesFor] = useState(null);
 
-  const token = localStorage.getItem("token");
   const navigate = useNavigate();
 
   const getFilteredEvents = () => {
@@ -276,7 +285,7 @@ function AdminEvents() {
       <body>
         <h1>Outreach Hope Church</h1>
         <h2>Events & Programs Report</h2>
-        <p>Filters applied: Type: ${filterType} | Search: ${searchQuery || "None"} | Date Range: ${startDate || "Any"} to ${endDate || "Any"}</p>
+        <p>Filters applied: Type: ${escapeHtml(filterType)} | Search: ${escapeHtml(searchQuery || "None")} | Date Range: ${escapeHtml(startDate || "Any")} to ${escapeHtml(endDate || "Any")}</p>
         <p>Generated on: ${new Date().toLocaleString()}</p>
         <br/>
         <table>
@@ -295,10 +304,10 @@ function AdminEvents() {
       const status = evDate >= today ? "Upcoming" : "Past";
       return `
                 <tr>
-                  <td><b>${r.title}</b></td>
+                  <td><b>${escapeHtml(r.title)}</b></td>
                   <td>${new Date(r.date).toLocaleDateString()}</td>
-                  <td>${status}</td>
-                  <td>${r.description}</td>
+                  <td>${escapeHtml(status)}</td>
+                  <td>${escapeHtml(r.description)}</td>
                 </tr>
               `;
     }).join('')}
@@ -339,8 +348,8 @@ function AdminEvents() {
       </head>
       <body>
         <h1>Outreach Hope Church</h1>
-        <h2>Attendee Report: ${event.title}</h2>
-        <p>Event Code: ${event.eventCode || "N/A"} | Date: ${new Date(event.date).toLocaleDateString()}</p>
+        <h2>Attendee Report: ${escapeHtml(event.title)}</h2>
+        <p>Event Code: ${escapeHtml(event.eventCode || "N/A")} | Date: ${new Date(event.date).toLocaleDateString()}</p>
         <p>Generated on: ${new Date().toLocaleString()}</p>
         <br/>
         <table>
@@ -355,10 +364,10 @@ function AdminEvents() {
           <tbody>
             ${event.attendees.map(a => `
               <tr>
-                <td>${a.name}</td>
-                <td>${a.memberId || "N/A"}</td>
-                <td>${a.idNo || a.idNumber || "N/A"}</td>
-                <td>${a.phone}</td>
+                <td>${escapeHtml(a.name)}</td>
+                <td>${escapeHtml(a.memberId || "N/A")}</td>
+                <td>${escapeHtml(a.idNo || a.idNumber || "N/A")}</td>
+                <td>${escapeHtml(a.phone)}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -383,14 +392,13 @@ function AdminEvents() {
   };
 
   const fetchEvents = async () => {
-    const res = await axios.get("/events");
+    const res = await axios.get("/api/admin/events");
     setEvents(res.data);
   };
 
   useEffect(() => {
-    if (token) fetchEvents();
-    else navigate("/admin-login");
-  }, [token]);
+    fetchEvents().catch(() => navigate("/admin-login"));
+  }, []);
 
   const shareToWhatsApp = (eventData) => {
     const formattedDate = new Date(eventData.date).toLocaleDateString("en-US", {
@@ -414,6 +422,17 @@ function AdminEvents() {
     window.open(`https://wa.me/?text=${encodedMessage}`, "_blank");
   };
 
+  const handleBannerChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setBannerFile(file);
+      setBannerPreview(URL.createObjectURL(file));
+    } else {
+      setBannerFile(null);
+      setBannerPreview("");
+    }
+  };
+
   const createEvent = async () => {
     if (!title.trim() || !date || !description.trim()) {
       alert("All fields are required to post an event.");
@@ -431,9 +450,19 @@ function AdminEvents() {
     }
 
     try {
-      await axios.post("/events", { title, date, description }, { headers: { Authorization: token } });
+      const formData = new FormData();
+      formData.append("title", title);
+      formData.append("date", date);
+      formData.append("description", description);
+      if (bannerFile) {
+        formData.append("banner", bannerFile);
+      }
+
+      await axios.post("/events", formData);
       const newEvent = { title, date, description };
       setTitle(""); setDate(""); setDescription("");
+      setBannerFile(null);
+      setBannerPreview("");
       fetchEvents();
 
       shareToWhatsApp(newEvent);
@@ -442,7 +471,7 @@ function AdminEvents() {
 
   const deleteEvent = async (id) => {
     if (!window.confirm("Are you sure you want to delete this event?")) return;
-    await axios.delete(`/events/${id}`, { headers: { Authorization: token } });
+    await axios.delete(`/events/${id}`);
     fetchEvents();
   };
 
@@ -490,6 +519,22 @@ function AdminEvents() {
               min={new Date().toISOString().split("T")[0]}
               style={styles.input}
             />
+          </div>
+          <div style={{ marginBottom: "14px" }}>
+            <label style={{ display: "block", marginBottom: "6px", fontSize: "0.85rem", color: "#94a3b8", fontWeight: 600 }}>
+              Event Banner Image (optional)
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleBannerChange}
+              style={{ ...styles.input, padding: "8px", fontSize: "0.85rem" }}
+            />
+            {bannerPreview && (
+              <div style={{ marginTop: "10px", borderRadius: "10px", overflow: "hidden", maxHeight: "180px" }}>
+                <img src={bannerPreview} alt="Banner preview" style={{ width: "100%", objectFit: "cover", maxHeight: "180px", borderRadius: "10px" }} />
+              </div>
+            )}
           </div>
           <textarea className="dash-input" placeholder="Event description…" value={description} onChange={(e) => setDescription(e.target.value)} style={styles.textarea} />
           <button className="primary-btn" onClick={createEvent} style={{ ...styles.primaryBtn, marginTop: "14px" }}>
@@ -597,6 +642,11 @@ function AdminEvents() {
                             ⚡ ACTIVE
                           </span>
                         </div>
+                        {event.banner && (
+                          <div style={{ marginBottom: "12px", borderRadius: "10px", overflow: "hidden", maxHeight: "200px" }}>
+                            <img src={event.banner} alt={`${event.title} banner`} style={{ width: "100%", objectFit: "cover", maxHeight: "200px", borderRadius: "10px" }} />
+                          </div>
+                        )}
                         <p style={styles.eventDesc}>{event.description}</p>
 
                         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }} className="no-print">
@@ -690,6 +740,11 @@ function AdminEvents() {
                             PASSED
                           </span>
                         </div>
+                        {event.banner && (
+                          <div style={{ marginBottom: "12px", borderRadius: "10px", overflow: "hidden", maxHeight: "150px", opacity: 0.8 }}>
+                            <img src={event.banner} alt={`${event.title} banner`} style={{ width: "100%", objectFit: "cover", maxHeight: "150px", borderRadius: "10px" }} />
+                          </div>
+                        )}
                         <p style={styles.eventDescPast}>{event.description}</p>
 
                         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }} className="no-print">

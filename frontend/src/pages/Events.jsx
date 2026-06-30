@@ -1,6 +1,28 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import CloseButton from "../components/CloseButton";
+import { API_URL } from "../apiConfig";
+
+const fileUrl = (url) => {
+  if (!url) return "";
+  if (/^https?:\/\//i.test(url)) return url;
+  return `${API_URL}${url.startsWith("/") ? url : `/${url}`}`;
+};
+
+const formatEventDate = (value, options) => {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-US", options);
+};
+
+const getDaysUntil = (value) => {
+  const eventDate = value ? new Date(value) : null;
+  if (!eventDate || Number.isNaN(eventDate.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  eventDate.setHours(0, 0, 0, 0);
+  return Math.max(Math.ceil((eventDate - today) / 86400000), 0);
+};
 
 /* ─── Global styles ─────────────────────────────────────────────── */
 const GlobalStyle = () => (
@@ -16,21 +38,288 @@ const GlobalStyle = () => (
       0%   { background-position: -600px 0; }
       100% { background-position: 600px 0; }
     }
+    @keyframes eventBannerDrift {
+      0% {
+        transform: translate3d(-22%, 0, 0) scale(1.08);
+      }
+      100% {
+        transform: translate3d(0, 0, 0) scale(1.08);
+      }
+    }
+    @keyframes eventBannerLight {
+      0% {
+        transform: translateX(-130%) skewX(-18deg);
+        opacity: 0;
+      }
+      18% {
+        opacity: 0.42;
+      }
+      52% {
+        opacity: 0.18;
+      }
+      100% {
+        transform: translateX(150%) skewX(-18deg);
+        opacity: 0;
+      }
+    }
 
     .events-page {
       animation: fadeIn 0.45s ease both;
       font-family: 'Inter', system-ui, sans-serif;
     }
+    .events-page-shell {
+      max-width: 1120px;
+      margin: 0 auto;
+    }
+    .event-hero-showcase {
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.92fr);
+      gap: 22px;
+      align-items: stretch;
+      margin: 0 auto 54px;
+    }
+    .event-hero-media {
+      position: relative;
+      min-height: 470px;
+      border-radius: 28px;
+      overflow: hidden;
+      isolation: isolate;
+      box-shadow: 0 34px 90px rgba(8, 47, 73, 0.26);
+      background: linear-gradient(135deg, #082f49, #0369a1 58%, #f59e0b);
+    }
+    .event-hero-media::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      background:
+        linear-gradient(90deg, rgba(8, 47, 73, 0.9), rgba(8, 47, 73, 0.5) 48%, rgba(8, 47, 73, 0.12)),
+        radial-gradient(circle at 12% 18%, rgba(255,255,255,0.24), transparent 28%);
+      pointer-events: none;
+    }
+    .event-hero-media::after {
+      content: "";
+      position: absolute;
+      inset: -30% auto -30% -10%;
+      width: 42%;
+      z-index: 2;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.24), transparent);
+      animation: eventBannerLight 11s ease-in-out infinite;
+      pointer-events: none;
+    }
+    .event-hero-img {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 146%;
+      height: 100%;
+      max-width: none;
+      object-fit: cover;
+      animation: eventBannerDrift 24s ease-in-out infinite alternate;
+      will-change: transform;
+    }
+    .event-hero-content {
+      position: relative;
+      z-index: 3;
+      min-height: 470px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: clamp(26px, 5vw, 54px);
+      color: #fff;
+    }
+    .event-kicker {
+      width: fit-content;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: rgba(224, 242, 254, 0.15);
+      color: #bae6fd;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+    .event-hero-title {
+      margin: 14px 0 12px;
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: clamp(2.7rem, 6vw, 5.6rem);
+      font-weight: 400;
+      line-height: 0.95;
+      letter-spacing: 0;
+      text-shadow: 0 24px 50px rgba(0,0,0,0.34);
+    }
+    .event-hero-copy {
+      max-width: 650px;
+      margin: 0;
+      color: rgba(255,255,255,0.86);
+      font-size: 0.98rem;
+      line-height: 1.75;
+    }
+    .event-hero-panel {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 470px;
+      padding: 26px;
+      border-radius: 28px;
+      background:
+        linear-gradient(145deg, rgba(255,255,255,0.92), rgba(240,249,255,0.78)),
+        radial-gradient(circle at top right, rgba(14,165,233,0.22), transparent 36%);
+      box-shadow: 0 26px 70px rgba(8, 47, 73, 0.13);
+      backdrop-filter: blur(14px);
+    }
+    .event-date-lockup {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 14px;
+      align-items: center;
+    }
+    .event-date-badge {
+      width: 76px;
+      height: 76px;
+      display: grid;
+      place-items: center;
+      border-radius: 22px;
+      background: linear-gradient(135deg, #0369a1, #0ea5e9);
+      color: #fff;
+      box-shadow: 0 18px 40px rgba(3, 105, 161, 0.26);
+    }
+    .event-countdown-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin: 22px 0;
+    }
+    .event-countdown-chip {
+      padding: 14px 10px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.82);
+      box-shadow: 0 14px 30px rgba(8, 47, 73, 0.08);
+      text-align: center;
+    }
+    .event-countdown-chip strong {
+      display: block;
+      color: #0c4a6e;
+      font-size: 1.35rem;
+      line-height: 1;
+    }
+    .event-countdown-chip span {
+      display: block;
+      margin-top: 5px;
+      color: #64748b;
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+    .event-visit-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .event-primary-action,
+    .event-secondary-action {
+      min-height: 46px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      border-radius: 14px;
+      padding: 12px 14px;
+      font: inherit;
+      font-size: 0.86rem;
+      font-weight: 800;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .event-primary-action {
+      background: linear-gradient(135deg, #0369a1, #0ea5e9);
+      color: #fff;
+      box-shadow: 0 16px 34px rgba(3, 105, 161, 0.24);
+    }
+    .event-secondary-action {
+      background: rgba(255,255,255,0.82);
+      color: #0c4a6e;
+      box-shadow: 0 14px 30px rgba(8, 47, 73, 0.08);
+    }
+    .event-idea-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 42px;
+    }
+    .event-idea-card {
+      min-height: 126px;
+      padding: 20px;
+      border-radius: 22px;
+      background: rgba(255,255,255,0.78);
+      box-shadow: 0 18px 46px rgba(8, 47, 73, 0.09);
+      backdrop-filter: blur(12px);
+    }
+    .event-idea-card strong {
+      display: block;
+      color: #0c4a6e;
+      margin-bottom: 6px;
+      font-size: 1rem;
+    }
+    .event-idea-card span {
+      color: #64748b;
+      font-size: 0.86rem;
+      line-height: 1.6;
+    }
 
     .ev-card {
+      border: none !important;
       transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
     .ev-card:hover {
       transform: translateY(-4px);
       box-shadow: 0 12px 36px rgba(3,105,161,0.14) !important;
     }
+    .event-banner-shell {
+      position: relative;
+      width: 100%;
+      height: 220px;
+      overflow: hidden;
+      isolation: isolate;
+      background: linear-gradient(135deg, #082f49, #0ea5e9 55%, #f59e0b);
+    }
+    .event-banner-shell::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      background:
+        linear-gradient(90deg, rgba(8,47,73,0.32), transparent 42%, rgba(8,47,73,0.16)),
+        radial-gradient(circle at 18% 18%, rgba(255,255,255,0.22), transparent 24%);
+      pointer-events: none;
+    }
+    .event-banner-shell::after {
+      content: "";
+      position: absolute;
+      inset: -20% auto -20% 0;
+      z-index: 2;
+      width: 42%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.36), transparent);
+      animation: eventBannerLight 9s ease-in-out infinite;
+      pointer-events: none;
+    }
+    .event-banner-img {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 138%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      max-width: none;
+      animation: eventBannerDrift 22s ease-in-out infinite alternate;
+      will-change: transform;
+    }
+    .ev-card:hover .event-banner-img {
+      animation-duration: 8s;
+    }
 
     .proj-card {
+      border: none !important;
       transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
     }
     .proj-card:hover {
@@ -44,6 +333,32 @@ const GlobalStyle = () => (
       background-size: 600px 100%;
       animation: shimmer 1.5s infinite linear;
       border-radius: 8px;
+    }
+
+    @media (max-width: 640px) {
+      .event-hero-showcase,
+      .event-idea-strip {
+        grid-template-columns: 1fr;
+      }
+      .event-hero-media,
+      .event-hero-content,
+      .event-hero-panel {
+        min-height: 380px;
+      }
+      .event-hero-title {
+        font-size: 2.7rem;
+      }
+      .event-visit-actions,
+      .event-countdown-grid {
+        grid-template-columns: 1fr;
+      }
+      .event-banner-shell {
+        height: 178px;
+      }
+      .event-banner-img {
+        width: 150%;
+        animation-duration: 24s;
+      }
     }
   `}</style>
 );
@@ -82,7 +397,7 @@ function SectionHeading({ title, subtitle }) {
           fontSize: "clamp(1.5rem, 3vw, 1.85rem)",
           fontWeight: 400,
           color: "#0c4a6e",
-          letterSpacing: "-0.4px",
+          letterSpacing: 0,
         }}>
           {title}
         </h2>
@@ -103,44 +418,146 @@ function SectionHeading({ title, subtitle }) {
 }
 
 /* ─── Event card ────────────────────────────────────────────────── */
+function FeaturedEventHero({ event }) {
+  if (!event) {
+    return (
+      <section className="event-hero-showcase">
+        <div className="event-hero-media">
+          <div className="event-hero-content">
+            <span className="event-kicker">Gather With Us</span>
+            <h1 className="event-hero-title">A church family with room for you</h1>
+            <p className="event-hero-copy">
+              Check back for worship nights, services, outreach moments, and community gatherings from Outreach Hope Church Sunshine.
+            </p>
+          </div>
+        </div>
+        <div className="event-hero-panel">
+          <div>
+            <span className="event-kicker" style={{ color: "#0369a1", background: "#e0f2fe" }}>This Week</span>
+            <h2 style={{ margin: "14px 0 8px", color: "#0c4a6e", fontFamily: "'DM Serif Display', Georgia, serif", fontSize: "2rem", fontWeight: 400 }}>
+              Stay connected
+            </h2>
+            <p style={{ color: "#64748b", lineHeight: 1.7, margin: 0 }}>
+              Events will appear here as soon as they are scheduled by the church team.
+            </p>
+          </div>
+          <div className="event-visit-actions">
+            <a className="event-primary-action" href="#events-list">View Events</a>
+            <a className="event-secondary-action" href="#projects-list">Projects</a>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const daysUntil = getDaysUntil(event.date);
+  const banner = fileUrl(event.banner);
+  const dateLabel = formatEventDate(event.date, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const day = formatEventDate(event.date, { day: "numeric" });
+  const month = formatEventDate(event.date, { month: "short" });
+
+  return (
+    <section className="event-hero-showcase">
+      <div className="event-hero-media">
+        {banner && <img className="event-hero-img" src={banner} alt="" />}
+        <div className="event-hero-content">
+          <span className="event-kicker">Next Gathering</span>
+          <h1 className="event-hero-title">{event.title}</h1>
+          <p className="event-hero-copy">
+            {event.description || "Come worship, connect, and grow with the Outreach Hope Church Sunshine family."}
+          </p>
+        </div>
+      </div>
+
+      <aside className="event-hero-panel">
+        <div>
+          <div className="event-date-lockup">
+            <div className="event-date-badge">
+              <div style={{ textAlign: "center" }}>
+                <strong style={{ display: "block", fontSize: "1.9rem", lineHeight: 1 }}>{day || "--"}</strong>
+                <span style={{ display: "block", fontSize: "0.72rem", fontWeight: 900, textTransform: "uppercase" }}>{month || "Soon"}</span>
+              </div>
+            </div>
+            <div>
+              <span style={{ color: "#0ea5e9", fontSize: "0.74rem", fontWeight: 900, textTransform: "uppercase", letterSpacing: 0 }}>Plan Your Visit</span>
+              <h2 style={{ margin: "5px 0 0", color: "#0c4a6e", fontFamily: "'DM Serif Display', Georgia, serif", fontSize: "1.8rem", fontWeight: 400 }}>
+                {dateLabel || "Coming soon"}
+              </h2>
+            </div>
+          </div>
+
+          <div className="event-countdown-grid">
+            <div className="event-countdown-chip">
+              <strong>{daysUntil ?? "--"}</strong>
+              <span>{daysUntil === 1 ? "Day" : "Days"}</span>
+            </div>
+            <div className="event-countdown-chip">
+              <strong>{event.time || "--"}</strong>
+              <span>Time</span>
+            </div>
+            <div className="event-countdown-chip">
+              <strong>{event.attendeesCount || 0}</strong>
+              <span>Going</span>
+            </div>
+          </div>
+
+          <p style={{ margin: 0, color: "#475569", lineHeight: 1.72, fontSize: "0.92rem" }}>
+            {event.location ? `Location: ${event.location}` : "Location details will be shared by the church team."}
+          </p>
+        </div>
+
+        <div className="event-visit-actions">
+          <a className="event-primary-action" href="#events-list">Reserve Interest</a>
+          <a className="event-secondary-action" href="#projects-list">Serve With Us</a>
+        </div>
+      </aside>
+    </section>
+  );
+}
+
+function EventIdeaStrip() {
+  return (
+    <section className="event-idea-strip" aria-label="Church event highlights">
+      <div className="event-idea-card">
+        <strong>Worship Together</strong>
+        <span>Services and gatherings shaped for prayer, worship, and the Word.</span>
+      </div>
+      <div className="event-idea-card">
+        <strong>Bring Someone</strong>
+        <span>Invite family, neighbors, and friends into a warm church community.</span>
+      </div>
+      <div className="event-idea-card">
+        <strong>Serve Sunshine</strong>
+        <span>Join outreach and project moments that bless the local community.</span>
+      </div>
+    </section>
+  );
+}
+
 function EventCard({ event, userProfile }) {
   const [expanded, setExpanded] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
-  const [attendeeData, setAttendeeData] = useState({
-    name: "",
-    phone: "",
-    memberId: "",
-    idNo: "",
-  });
+  const [attendeeDraft, setAttendeeDraft] = useState({});
 
-  useEffect(() => {
-    let phone = "";
+  const defaultAttendeeData = useMemo(() => {
     if (userProfile) {
       const name = `${userProfile.firstName || ""} ${userProfile.lastName || ""}`.trim();
-      phone = userProfile.phone || "";
-      setAttendeeData({
-        name,
-        phone,
-        memberId: userProfile.memberId || "",
-        idNo: userProfile.idNo || ""
-      });
-    } else {
-      const name = localStorage.getItem("memberName") ? `${localStorage.getItem("memberName")} ${localStorage.getItem("memberLastName") || ""}`.trim() : "";
-      phone = localStorage.getItem("memberPhone") || "";
-      setAttendeeData({
-        name,
-        phone,
-        memberId: localStorage.getItem("memberId") || "",
-        idNo: localStorage.getItem("memberIdNo") || ""
-      });
+      return { name, phone: userProfile.phone || "" };
     }
 
-    // Check if user already confirmed attendance for this event
-    if (phone && event.attendees && event.attendees.some(a => a.phone === phone)) {
-      setConfirmed(true);
-      setExpanded(true);
-    }
-  }, [userProfile, event.attendees]);
+    const storedName = localStorage.getItem("memberName");
+    const name = storedName ? `${storedName} ${localStorage.getItem("memberLastName") || ""}`.trim() : "";
+    return { name, phone: localStorage.getItem("memberPhone") || "" };
+  }, [userProfile]);
+
+  const attendeeData = useMemo(() => ({
+    name: attendeeDraft.name ?? defaultAttendeeData.name,
+    phone: attendeeDraft.phone ?? defaultAttendeeData.phone,
+  }), [attendeeDraft.name, attendeeDraft.phone, defaultAttendeeData.name, defaultAttendeeData.phone]);
+
+  const alreadyConfirmed = Boolean(attendeeData.phone && event.attendees?.some((attendee) => attendee.phone === attendeeData.phone));
+  const showExpanded = expanded || confirmed || alreadyConfirmed;
+  const showConfirmed = confirmed || alreadyConfirmed;
 
   const rawDate = event.date ? new Date(event.date) : null;
   const formatted = rawDate && !isNaN(rawDate)
@@ -161,6 +578,17 @@ function EventCard({ event, userProfile }) {
       display: "flex",
       flexDirection: "column",
     }}>
+      {/* Banner image at top */}
+      {event.banner && (
+        <div className="event-banner-shell">
+          <img
+            className="event-banner-img"
+            src={fileUrl(event.banner)}
+            alt={`${event.title} banner`}
+          />
+        </div>
+      )}
+
       {/* Left-side coloured strip */}
       <div style={{ display: "flex", flex: 1 }}>
         <div style={{
@@ -238,7 +666,7 @@ function EventCard({ event, userProfile }) {
 
             {/* Attendance flow */}
             <div style={{ marginTop: "16px" }}>
-              {!expanded ? (
+              {!showExpanded ? (
                 <button
                   onClick={() => setExpanded(true)}
                   style={{
@@ -249,12 +677,12 @@ function EventCard({ event, userProfile }) {
                 >
                   I'm Interested
                 </button>
-              ) : !confirmed ? (
+              ) : !showConfirmed ? (
                 <div style={{ background: "#f8fafc", padding: "16px", borderRadius: "10px", border: "1px solid #e2e8f0", animation: "fadeIn 0.3s" }}>
                   <span style={{ fontSize: "0.85rem", color: "#334155", fontWeight: 600, display: "block", marginBottom: "10px" }}>Confirm Attendance</span>
-                  <input type="text" placeholder="Full Name" value={attendeeData.name} onChange={e => setAttendeeData({ ...attendeeData, name: e.target.value })} style={{ width: "100%", marginBottom: "8px", padding: "8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.8rem", outline: "none" }} />
+                  <input type="text" placeholder="Full Name" value={attendeeData.name} onChange={e => setAttendeeDraft((prev) => ({ ...prev, name: e.target.value }))} style={{ width: "100%", marginBottom: "8px", padding: "8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.8rem", outline: "none" }} />
 
-                  <input type="tel" placeholder="Phone Number" value={attendeeData.phone} onChange={e => setAttendeeData({ ...attendeeData, phone: e.target.value })} style={{ width: "100%", marginBottom: "12px", padding: "8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.8rem", outline: "none" }} />
+                  <input type="tel" placeholder="Phone Number" value={attendeeData.phone} onChange={e => setAttendeeDraft((prev) => ({ ...prev, phone: e.target.value }))} style={{ width: "100%", marginBottom: "12px", padding: "8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.8rem", outline: "none" }} />
 
                   <button
                     onClick={async () => {
@@ -363,12 +791,8 @@ function Events() {
   const [userProfile, setUserProfile] = useState(null);
 
   const fetchUser = async () => {
-    const token = localStorage.getItem("memberToken");
-    if (!token) return;
     try {
-      const res = await axios.get("/auth/me", {
-        headers: { Authorization: token },
-      });
+      const res = await axios.get("/auth/me");
       setUserProfile(res.data);
     } catch {
       setUserProfile(null);
@@ -406,6 +830,8 @@ function Events() {
     fetchUser();
   }, []);
 
+  const featuredEvent = events[0] || null;
+
   return (
     <>
       <GlobalStyle />
@@ -420,10 +846,14 @@ function Events() {
       >
         <CloseButton />
 
+        <div className="events-page-shell">
+          <FeaturedEventHero event={featuredEvent} />
+          <EventIdeaStrip />
+
         {/* ── Page header ── */}
         <div style={{
           maxWidth: "680px",
-          margin: "0 auto 52px",
+          margin: "0 auto 42px",
           textAlign: "center",
           paddingTop: "8px",
         }}>
@@ -433,7 +863,7 @@ function Events() {
             gap: "7px",
             fontSize: "0.72rem",
             fontWeight: 600,
-            letterSpacing: "1.4px",
+            letterSpacing: 0,
             textTransform: "uppercase",
             color: "#0369a1",
             marginBottom: "16px",
@@ -456,9 +886,9 @@ function Events() {
             fontWeight: 400,
             color: "#0c4a6e",
             lineHeight: 1.2,
-            letterSpacing: "-0.5px",
+            letterSpacing: 0,
           }}>
-            Events &amp; Projects
+            Church Calendar
           </h1>
 
           <p style={{
@@ -475,7 +905,7 @@ function Events() {
         </div>
 
         {/* ── Content ── */}
-        <div style={{ maxWidth: "1060px", margin: "0 auto" }}>
+        <div id="events-list" style={{ maxWidth: "1060px", margin: "0 auto" }}>
 
           {/* Events section */}
           <SectionHeading
@@ -551,7 +981,7 @@ function Events() {
             <div style={{ flex: 1, height: "1px", background: "#bae6fd" }} />
             <div style={{
               display: "flex", alignItems: "center", gap: "8px",
-              fontSize: "0.75rem", fontWeight: 600, letterSpacing: "0.5px",
+              fontSize: "0.75rem", fontWeight: 600, letterSpacing: 0,
               textTransform: "uppercase", color: "#94a3b8",
             }}>
               Sunshine, Joska
@@ -559,44 +989,47 @@ function Events() {
             <div style={{ flex: 1, height: "1px", background: "#bae6fd" }} />
           </div>
 
-          <SectionHeading
-            title="Ongoing & Upcoming Projects"
-            subtitle={`${projects.length} active initiatives in our community`}
-          />
+          <div id="projects-list">
+            <SectionHeading
+              title="Ongoing & Upcoming Projects"
+              subtitle={`${projects.length} active initiatives in our community`}
+            />
 
-          {loading ? (
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-              gap: "20px",
-            }}>
-              {[1, 2, 3].map((n) => <SkeletonCard key={n} />)}
-            </div>
-          ) : projects.length === 0 ? (
-            <div style={{
-              textAlign: "center",
-              padding: "48px 20px",
-              background: "#fff",
-              borderRadius: "14px",
-              border: "1px solid #bae6fd",
-            }}>
-              <p style={{ color: "#64748b", margin: 0 }}>No active projects at the moment.</p>
-            </div>
-          ) : (
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-              gap: "20px",
-            }}>
-              {projects.map((proj) => (
-                <ProjectCard
-                  key={proj._id}
-                  project={proj}
-                />
-              ))}
-            </div>
-          )}
+            {loading ? (
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                gap: "20px",
+              }}>
+                {[1, 2, 3].map((n) => <SkeletonCard key={n} />)}
+              </div>
+            ) : projects.length === 0 ? (
+              <div style={{
+                textAlign: "center",
+                padding: "48px 20px",
+                background: "#fff",
+                borderRadius: "14px",
+                border: "1px solid #bae6fd",
+              }}>
+                <p style={{ color: "#64748b", margin: 0 }}>No active projects at the moment.</p>
+              </div>
+            ) : (
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                gap: "20px",
+              }}>
+                {projects.map((proj) => (
+                  <ProjectCard
+                    key={proj._id}
+                    project={proj}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
 
+        </div>
         </div>
       </div>
     </>

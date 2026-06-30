@@ -101,7 +101,8 @@ function MemberSignup() {
         delete payload.idNo;
       }
       const res = await axios.post("/auth/signup", payload);
-      localStorage.setItem("memberToken", res.data.token);
+      localStorage.removeItem("memberToken");
+      localStorage.setItem("memberSession", "true");
       localStorage.setItem("memberName", res.data.member.firstName);
       localStorage.setItem("memberLastName", res.data.member.lastName);
       localStorage.setItem("memberId", res.data.member.memberId);

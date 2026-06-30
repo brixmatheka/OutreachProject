@@ -21,7 +21,8 @@ function MemberLogin() {
     setError("");
     try {
       const res = await axios.post("/auth/login", credentials);
-      localStorage.setItem("memberToken", res.data.token);
+      localStorage.removeItem("memberToken");
+      localStorage.setItem("memberSession", "true");
       localStorage.setItem("memberName", res.data.member.firstName);
       localStorage.setItem("memberLastName", res.data.member.lastName);
       localStorage.setItem("memberId", res.data.member.memberId);

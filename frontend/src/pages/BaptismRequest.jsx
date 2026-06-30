@@ -24,24 +24,17 @@ function BaptismRequest() {
   const completedRequest = myRequests.find(req => req.status === "Completed");
   const hasCompletedRequest = !!completedRequest;
 
-  const fetchMyRequests = (token) => {
-    axios.get("/api/my-baptism-requests", {
-      headers: { Authorization: token }
-    })
+  const fetchMyRequests = () => {
+    axios.get("/api/my-baptism-requests")
       .then(res => setMyRequests(res.data))
       .catch(() => setMyRequests([]));
   };
 
   // Auto-fill form with logged-in member data on mount
   useEffect(() => {
-    const token = localStorage.getItem("memberToken");
-    if (!token) return;
-
     setPrefilling(true);
     axios
-      .get("/auth/me", {
-        headers: { Authorization: token },
-      })
+      .get("/auth/me")
       .then((res) => {
         const member = res.data;
         // Format dateOfBirth to YYYY-MM-DD if available
@@ -67,7 +60,7 @@ function BaptismRequest() {
         }));
         setIsLoggedIn(true);
         setIsAlreadyBaptized(!!member.isBaptized);
-        fetchMyRequests(token);
+        fetchMyRequests();
       })
       .catch(() => {
         // Token may be expired or invalid — silently ignore
@@ -147,8 +140,7 @@ function BaptismRequest() {
       setSuccess(true);
       setFormData({ fullName: "", email: "", phone: "", dateOfBirth: "", preferredDate: "" });
 
-      const token = localStorage.getItem("memberToken");
-      if (token) fetchMyRequests(token);
+      if (isLoggedIn) fetchMyRequests();
     } catch (err) {
       // Try to map server error to a field
       const msg = err.response?.data?.message || "Something went wrong. Please try again.";

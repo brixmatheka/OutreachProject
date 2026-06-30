@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import "./apiConfig" // Ensure axios is configured with auth interceptor
+import { API_URL } from "./apiConfig" // Ensure axios is configured with auth interceptor
 import axios from "axios"
 import './App.css'
-import { Routes, Route, Link, Navigate, useLocation } from "react-router-dom"
+import { Routes, Route, Link, Navigate, useLocation, useNavigate } from "react-router-dom"
 import AdminLogin from "./pages/AdminLogin"
 import AdminDashboard from "./pages/AdminDashboard"
 import AdminEvents from "./pages/AdminEvents"
@@ -28,41 +28,86 @@ import Careers from "./pages/Careers"
 import Opportunities from "./pages/Opportunities"
 import AdminGallery from "./pages/AdminGallery"
 import AdminMinisters from "./pages/AdminMinisters"
-import { canAccessAdminSection, clearAdminAuth, getAdminAuth } from "./adminAccess"
+import AdminSermons from "./pages/AdminSermons"
+import Sermons from "./pages/Sermons"
+import { canAccessAdminSection, clearAdminAuth, storeAdminAuth } from "./adminAccess"
 
 // Protected Route for Members
 const MemberProtectedRoute = ({ children }) => {
-  const token = localStorage.getItem("memberToken");
   const location = useLocation();
+  const [status, setStatus] = useState("checking");
 
-  if (!token) {
-    localStorage.setItem("redirectAfterLogin", location.pathname);
-    return <Navigate to="/login" replace />;
-  }
+  useEffect(() => {
+    let active = true;
+    axios.get("/auth/me")
+      .then((res) => {
+        if (!active) return;
+        localStorage.removeItem("memberToken");
+        localStorage.setItem("memberSession", "true");
+        localStorage.setItem("memberName", res.data.firstName);
+        localStorage.setItem("memberLastName", res.data.lastName || "");
+        localStorage.setItem("memberId", res.data.memberId || "");
+        setStatus("authenticated");
+      })
+      .catch(() => {
+        if (!active) return;
+        localStorage.removeItem("memberSession");
+        localStorage.removeItem("memberToken");
+        localStorage.setItem("redirectAfterLogin", location.pathname);
+        setStatus("unauthenticated");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [location.pathname]);
+
+  if (status === "checking") return null;
+  if (status === "unauthenticated") return <Navigate to="/login" replace />;
   return children;
 };
 
 const AdminProtectedRoute = ({ section, children }) => {
-  const { token, role } = getAdminAuth();
   const location = useLocation();
+  const [status, setStatus] = useState("checking");
+  const [allowed, setAllowed] = useState(false);
 
-  if (!token || !role) {
-    clearAdminAuth();
-    return <Navigate to="/admin-login" replace state={{ from: location.pathname }} />;
-  }
+  useEffect(() => {
+    let active = true;
 
-  if (!canAccessAdminSection(section)) {
-    return <Navigate to="/admin-dashboard" replace />;
-  }
+    axios.get("/admin/me")
+      .then((res) => {
+        if (!active) return;
+        storeAdminAuth(res.data);
+        setAllowed(canAccessAdminSection(section));
+        setStatus("authenticated");
+      })
+      .catch(() => {
+        if (!active) return;
+        clearAdminAuth();
+        setStatus("unauthenticated");
+      });
 
+    return () => {
+      active = false;
+    };
+  }, [section]);
+
+  if (status === "checking") return null;
+  if (status === "unauthenticated") return <Navigate to="/admin-login" replace state={{ from: location.pathname }} />;
+  if (!allowed) return <Navigate to="/admin-dashboard" replace />;
   return children;
 };
 
 function App() {
-  const [serverMessage, setServerMessage] = useState("")
   const [memberName, setMemberName] = useState(localStorage.getItem("memberName"))
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [upcomingEvent, setUpcomingEvent] = useState(null);
+  const [showEventAnnouncement, setShowEventAnnouncement] = useState(false);
+  const [eventAnnouncementClosing, setEventAnnouncementClosing] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const onScroll = () => setIsScrolled(window.scrollY > 6);
@@ -72,42 +117,145 @@ function App() {
   }, []);
 
   useEffect(() => {
-    axios.get("/")
+    axios.get("/auth/me")
       .then((res) => {
-        setServerMessage(res.data)
+        localStorage.removeItem("memberToken");
+        localStorage.setItem("memberSession", "true");
+        localStorage.setItem("memberName", res.data.firstName);
+        localStorage.setItem("memberLastName", res.data.lastName || "");
+        localStorage.setItem("memberId", res.data.memberId || "");
+        setMemberName(res.data.firstName);
       })
-      .catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    const token = localStorage.getItem("memberToken");
-    if (token) {
-      axios.get("/auth/me", {
-        headers: { Authorization: token }
-      })
-        .then((res) => {
-          localStorage.setItem("memberName", res.data.firstName);
-          setMemberName(res.data.firstName);
-        })
-        .catch((err) => {
-          if (err.response?.status === 401 || err.response?.status === 404) {
-            localStorage.removeItem("memberToken");
-            localStorage.removeItem("memberName");
-            localStorage.removeItem("memberLastName");
-            localStorage.removeItem("memberId");
-            setMemberName(null);
-          }
-        });
-    }
+      .catch(() => {
+        localStorage.removeItem("memberSession");
+        localStorage.removeItem("memberToken");
+        localStorage.removeItem("memberName");
+        localStorage.removeItem("memberLastName");
+        localStorage.removeItem("memberId");
+        setMemberName(null);
+      });
   }, []);
 
   const handleLogout = () => {
+    axios.post("/auth/logout").catch(() => {});
+    localStorage.removeItem("memberSession");
     localStorage.removeItem("memberToken");
     localStorage.removeItem("memberName");
     localStorage.removeItem("memberLastName");
     localStorage.removeItem("memberId");
     setMemberName(null);
     window.location.href = "/";
+  };
+
+  const fileUrl = (url) => {
+    if (!url) return "";
+    if (/^https?:\/\//i.test(url)) return url;
+    return `${API_URL}${url.startsWith("/") ? url : `/${url}`}`;
+  };
+
+  const formatEventDate = (value) => {
+    if (!value) return "Date coming soon";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Date coming soon";
+    return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  };
+
+  const closeEventAnnouncement = () => {
+    setEventAnnouncementClosing(true);
+    window.setTimeout(() => {
+      setShowEventAnnouncement(false);
+      setEventAnnouncementClosing(false);
+    }, 420);
+  };
+
+  useEffect(() => {
+    if (location.pathname !== "/") {
+      return undefined;
+    }
+
+    let active = true;
+    axios.get("/events")
+      .then((res) => {
+        if (!active) return;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const nextEvent = (res.data || [])
+          .filter((event) => {
+            const eventDate = new Date(event.date);
+            if (Number.isNaN(eventDate.getTime())) return false;
+            eventDate.setHours(0, 0, 0, 0);
+            return eventDate >= today;
+          })
+          .sort((a, b) => new Date(a.date) - new Date(b.date))[0];
+
+        setUpcomingEvent(nextEvent || null);
+        setShowEventAnnouncement(Boolean(nextEvent));
+        setEventAnnouncementClosing(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setUpcomingEvent(null);
+        setShowEventAnnouncement(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!showEventAnnouncement) return undefined;
+    const timer = window.setTimeout(closeEventAnnouncement, 5000);
+    return () => window.clearTimeout(timer);
+  }, [showEventAnnouncement]);
+
+  const openEventAnnouncement = () => {
+    closeEventAnnouncement();
+    navigate("/events");
+  };
+
+  const renderEventAnnouncement = () => {
+    if (location.pathname !== "/") return null;
+    if (!upcomingEvent || !showEventAnnouncement) return null;
+    const banner = fileUrl(upcomingEvent.banner);
+
+    return (
+      <aside
+        className={`home-event-announcement ${eventAnnouncementClosing ? "closing" : ""}`}
+        role="button"
+        tabIndex={0}
+        onClick={openEventAnnouncement}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            openEventAnnouncement();
+          }
+        }}
+        aria-label={`Open upcoming event ${upcomingEvent.title}`}
+      >
+        {banner && <img src={banner} alt="" className="home-event-announcement-img" />}
+        <div className="home-event-announcement-body">
+          <span className="home-event-announcement-kicker">Next Event</span>
+          <strong className="home-event-announcement-title">{upcomingEvent.title}</strong>
+          <span className="home-event-announcement-meta">
+            {formatEventDate(upcomingEvent.date)}
+            {upcomingEvent.time ? ` | ${upcomingEvent.time}` : ""}
+          </span>
+          {upcomingEvent.location && <span className="home-event-announcement-location">{upcomingEvent.location}</span>}
+        </div>
+        <button
+          type="button"
+          className="home-event-announcement-close"
+          aria-label="Close event announcement"
+          onClick={(event) => {
+            event.stopPropagation();
+            closeEventAnnouncement();
+          }}
+        >
+          ×
+        </button>
+      </aside>
+    );
   };
 
   const renderHeader = () => (
@@ -171,6 +319,7 @@ function App() {
           <Link to="/services" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Services</Link>
           <Link to="/ministers" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Ministers</Link>
           <Link to="/events" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Events</Link>
+          <Link to="/sermons" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Sermons</Link>
           <Link to="/gallery" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Gallery</Link>
           <Link to="/careers" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Careers</Link>
           <Link to="/give" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Give</Link>
@@ -197,6 +346,7 @@ function App() {
       <Route path="/" element={
         <div className="app-root">
           {renderHeader()}
+          {renderEventAnnouncement()}
 
           <main className="app-main">
             <section className="hero">
@@ -260,11 +410,12 @@ function App() {
                   </div>
                   <ul className="feature-list">
                     <li>Daily scripture reflections for encouragement and growth.</li>
+                    <li>Read and download sermon notes for personal study.</li>
                     <li>Submit prayer requests directly from the church portal.</li>
-                    <li>Stay connected to life-changing teaching and worship.</li>
                   </ul>
                   <div className="feature-footer">
                     <Link to="/bible" className="feature-pill" style={{ textDecoration: 'none' }}>Open Bible</Link>
+                    <Link to="/sermons" className="feature-pill" style={{ textDecoration: 'none' }}>Sermons</Link>
                     <Link to="/prayerRequests" className="feature-pill" style={{ textDecoration: 'none' }}>Prayer Requests</Link>
                   </div>
                 </div>
@@ -327,13 +478,15 @@ function App() {
       <Route path="/gallery" element={<Gallery />} />
       <Route path="/careers" element={<Careers />} />
       <Route path="/opportunities" element={<Opportunities />} />
+      <Route path="/events" element={<Events />} />
       <Route path="/login" element={<MemberLogin />} />
       <Route path="/signup" element={<MemberSignup />} />
       <Route path="/admin-login" element={<AdminLogin />} />
 
       {/* Protected Member Pages */}
       <Route path="/services" element={<MemberProtectedRoute><Services /></MemberProtectedRoute>} />
-      <Route path="/events" element={<MemberProtectedRoute><Events /></MemberProtectedRoute>} />
+      <Route path="/sermons" element={<MemberProtectedRoute><Sermons /></MemberProtectedRoute>} />
+      <Route path="/sermons/:id" element={<MemberProtectedRoute><Sermons /></MemberProtectedRoute>} />
       <Route path="/give" element={<MemberProtectedRoute><Give /></MemberProtectedRoute>} />
       <Route path="/ministers" element={<MemberProtectedRoute><Ministers /></MemberProtectedRoute>} />
       <Route path="/prayerRequests" element={<MemberProtectedRoute><PrayerRequests /></MemberProtectedRoute>} />
@@ -349,6 +502,7 @@ function App() {
       <Route path="/admin/transactions" element={<AdminProtectedRoute section="transactions"><AdminTransactions /></AdminProtectedRoute>} />
       <Route path="/admin/members" element={<AdminProtectedRoute section="members"><AdminMembers /></AdminProtectedRoute>} />
       <Route path="/admin/baptism" element={<AdminProtectedRoute section="baptism"><AdminBaptism /></AdminProtectedRoute>} />
+      <Route path="/admin/sermons" element={<AdminProtectedRoute section="sermons"><AdminSermons /></AdminProtectedRoute>} />
       <Route path="/admin/gallery" element={<AdminProtectedRoute section="gallery"><AdminGallery /></AdminProtectedRoute>} />
       <Route path="/admin/ministers" element={<AdminProtectedRoute section="ministers"><AdminMinisters /></AdminProtectedRoute>} />
     </Routes>

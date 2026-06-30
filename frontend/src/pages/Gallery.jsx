@@ -27,6 +27,41 @@ export default function Gallery() {
   const openLightbox = useCallback((item) => setLightbox(item), []);
   const closeLightbox = useCallback(() => setLightbox(null), []);
 
+  const mediaUrl = (url) => {
+    if (!url) return "";
+    if (/^https?:\/\//i.test(url)) return url;
+    return `${API}${url.startsWith("/") ? url : `/${url}`}`;
+  };
+
+  const getFileName = (url) => {
+    const rawName = String(url || "").split("/").pop() || "gallery-image";
+    try {
+      return decodeURIComponent(rawName);
+    } catch {
+      return rawName;
+    }
+  };
+
+  const downloadImage = async (item) => {
+    if (!item?.url || item.type !== "image") return;
+    const url = mediaUrl(item.url);
+    const fileName = getFileName(item.url);
+
+    try {
+      const res = await axios.get(url, { responseType: "blob" });
+      const blobUrl = URL.createObjectURL(res.data);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 500);
+    } catch {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  };
+
   const navigate = (dir) => {
     const idx = filtered.findIndex((i) => i.url === lightbox.url);
     const next = filtered[idx + dir];
@@ -134,7 +169,7 @@ export default function Gallery() {
               >
                 {item.type === "image" ? (
                   <img
-                    src={`${API}${item.url}`}
+                    src={mediaUrl(item.url)}
                     alt="Church photo"
                     className="gallery-thumb"
                     loading="lazy"
@@ -142,7 +177,7 @@ export default function Gallery() {
                 ) : (
                   <div className="gallery-video-thumb">
                     <video
-                      src={`${API}${item.url}`}
+                      src={mediaUrl(item.url)}
                       className="gallery-thumb"
                       muted
                       preload="metadata"
@@ -158,6 +193,18 @@ export default function Gallery() {
                     {item.url.split("/").pop()}
                   </p>
                 </div>
+                {item.type === "image" && (
+                  <button
+                    type="button"
+                    className="gallery-download-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadImage(item);
+                    }}
+                  >
+                    Download
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -171,13 +218,13 @@ export default function Gallery() {
             <button className="gallery-lb-close" onClick={closeLightbox}>✕</button>
             {lightbox.type === "image" ? (
               <img
-                src={`${API}${lightbox.url}`}
+                src={mediaUrl(lightbox.url)}
                 alt=""
                 className="gallery-lb-media"
               />
             ) : (
               <video
-                src={`${API}${lightbox.url}`}
+                src={mediaUrl(lightbox.url)}
                 controls
                 autoPlay
                 className="gallery-lb-media"
@@ -190,6 +237,14 @@ export default function Gallery() {
               </span>
             </div>
             <div className="gallery-lb-nav">
+              {lightbox.type === "image" && (
+                <button
+                  className="gallery-lb-nav-btn gallery-lb-download-btn"
+                  onClick={() => downloadImage(lightbox)}
+                >
+                  Download
+                </button>
+              )}
               <button
                 className="gallery-lb-nav-btn"
                 onClick={() => navigate(-1)}
@@ -317,6 +372,49 @@ export default function Gallery() {
           color: #64748b;
           margin: 0;
           font-weight: 500;
+        }
+
+        .gallery-download-btn {
+          position: absolute;
+          right: 12px;
+          bottom: 12px;
+          z-index: 3;
+          border: none;
+          border-radius: 999px;
+          padding: 8px 12px;
+          background: rgba(15, 23, 42, 0.86);
+          color: #f8fafc;
+          font-size: 0.78rem;
+          font-weight: 800;
+          cursor: pointer;
+          box-shadow: 0 12px 24px rgba(0, 0, 0, 0.24);
+          opacity: 0;
+          transform: translateY(6px);
+          transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s ease;
+        }
+
+        .gallery-card:hover .gallery-download-btn,
+        .gallery-download-btn:focus-visible {
+          opacity: 1;
+          transform: translateY(0);
+        }
+
+        .gallery-download-btn:hover {
+          background: #0ea5e9;
+          color: #082f49;
+        }
+
+        .gallery-lb-download-btn {
+          background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+          color: #082f49;
+        }
+
+        @media (max-width: 760px) {
+          .gallery-download-btn {
+            opacity: 1;
+            transform: none;
+            padding: 9px 12px;
+          }
         }
       `}</style>
     </div>

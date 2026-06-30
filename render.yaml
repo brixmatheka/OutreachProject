@@ -35,6 +35,8 @@ services:
         sync: false
       - key: MPESA_PASSKEY
         sync: false
+      - key: MPESA_CALLBACK_SECRET
+        sync: false
       - key: MPESA_CALLBACK_URL
         value: https://outreach-backend.onrender.com/api/mpesa/callback
 

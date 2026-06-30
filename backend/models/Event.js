@@ -18,6 +18,10 @@ const eventSchema = new mongoose.Schema({
   time: {
     type: String,
   },
+  banner: {
+    type: String,
+    default: "",
+  },
   attendeesCount: {
     type: Number,
     default: 0,

@@ -41,10 +41,8 @@ function PrayerRequest() {
 
   // Auto-fill from logged-in member
   useEffect(() => {
-    const token = localStorage.getItem("memberToken")
-    if (!token) return
     axios
-      .get("/auth/me", { headers: { Authorization: token } })
+      .get("/auth/me")
       .then((res) => {
         const m = res.data
         setFormData((prev) => ({

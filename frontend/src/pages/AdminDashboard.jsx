@@ -381,6 +381,7 @@ function AdminDashboard() {
   const [projects, setProjects] = useState([]);
   const [members, setMembers] = useState([]);
   const [baptismRequests, setBaptismRequests] = useState([]);
+  const [sermonAnalytics, setSermonAnalytics] = useState(null);
 
   // Project Form State
   const [projTitle, setProjTitle] = useState("");
@@ -451,6 +452,17 @@ function AdminDashboard() {
     }
   };
 
+  const fetchSermonAnalytics = async () => {
+    try {
+      const res = await axios.get("/api/admin/sermons/analytics", {
+        headers: { Authorization: token },
+      });
+      setSermonAnalytics(res.data);
+    } catch {
+      setSermonAnalytics(null);
+    }
+  };
+
   useEffect(() => {
     if (token) {
       if (canAccessAdminSection("events")) fetchEvents();
@@ -459,6 +471,7 @@ function AdminDashboard() {
       if (canAccessAdminSection("projects")) fetchProjects();
       if (canAccessAdminSection("members")) fetchMembers();
       if (canAccessAdminSection("baptism")) fetchBaptismRequests();
+      if (canAccessAdminSection("sermons")) fetchSermonAnalytics();
     }
   }, [token, adminAuth.role]);
 
@@ -527,6 +540,7 @@ function AdminDashboard() {
   };
 
   const handleLogout = () => {
+    axios.post("/admin/logout").catch(() => {});
     clearAdminAuth();
     window.location.href = "/admin-login";
   };
@@ -639,6 +653,11 @@ function AdminDashboard() {
             </span>
             <span style={styles.statLabel}>Total Giving (KES)</span>
           </div>
+          <div className="stat-card" style={{ ...styles.statCard("#38bdf8"), ...hiddenIfNoAccess("sermons") }}>
+            <div style={styles.statIcon("#38bdf8")} />
+            <span style={styles.statNumber("#38bdf8")}>{sermonAnalytics?.totalSermons || 0}</span>
+            <span style={styles.statLabel}>Sermons</span>
+          </div>
         </div>
 
         <hr style={styles.divider} />
@@ -740,6 +759,22 @@ function AdminDashboard() {
             </p>
             <span style={{ fontSize: "0.8rem", color: "#0284c7", fontWeight: 600 }}>
               {baptismRequests.filter(r => r.status === "Pending").length} pending of {baptismRequests.length} → Open
+            </span>
+          </div>
+
+          {/* Sermons Card */}
+          <div className="stat-card" onClick={() => window.location.href = "/admin/sermons"} style={{
+            ...styles.glassCard, cursor: "pointer", marginBottom: 0, display: "flex", flexDirection: "column", gap: "14px",
+            borderLeft: "5px solid #38bdf8", transition: "transform 0.2s, box-shadow 0.2s",
+            ...hiddenIfNoAccess("sermons"),
+          }}>
+            <div style={{ fontSize: "2.2rem" }}>S</div>
+            <h4 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#38bdf8" }}>Sermons</h4>
+            <p style={{ margin: 0, fontSize: "0.85rem", color: "#94a3b8", lineHeight: 1.5 }}>
+              Upload notes, publish sermon documents, and review reader engagement.
+            </p>
+            <span style={{ fontSize: "0.8rem", color: "#38bdf8", fontWeight: 600 }}>
+              {(sermonAnalytics?.totalViews || 0).toLocaleString()} views | {(sermonAnalytics?.totalDownloads || 0).toLocaleString()} downloads
             </span>
           </div>
 
