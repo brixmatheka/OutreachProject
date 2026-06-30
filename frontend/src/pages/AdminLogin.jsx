@@ -1,12 +1,15 @@
 import { useState } from "react";
 import axios from "../apiConfig";
 import { clearAdminAuth, storeAdminAuth } from "../adminAccess";
+import { useLocation, useNavigate } from "react-router-dom";
 
 function AdminLogin() {
   const [credentials, setCredentials] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const handleChange = (e) => {
     setCredentials({ ...credentials, [e.target.name]: e.target.value });
@@ -21,7 +24,7 @@ function AdminLogin() {
       const res = await axios.post("/admin/login", credentials);
       clearAdminAuth();
       storeAdminAuth(res.data);
-      window.location.href = "/admin-dashboard";
+      navigate(location.state?.from || "/admin-dashboard", { replace: true });
     } catch (err) {
       setError("Invalid email or password.");
     } finally {

@@ -72,18 +72,36 @@ const AdminProtectedRoute = ({ section, children }) => {
 
   useEffect(() => {
     let active = true;
-    const { token } = getAdminAuth();
-    const hasRealToken = token && token !== "cookie-session";
+    const auth = getAdminAuth();
+    const hasStoredAccess = Boolean(auth.token && auth.role && canAccessAdminSection(section));
+    const hasRealToken = auth.token && auth.token !== "cookie-session";
 
-    axios.get("/admin/me", hasRealToken ? { headers: { Authorization: `Bearer ${token}` } } : undefined)
+    if (!auth.token || !auth.role) {
+      clearAdminAuth();
+      setStatus("unauthenticated");
+      return () => {
+        active = false;
+      };
+    }
+
+    if (hasStoredAccess) {
+      setAllowed(true);
+      setStatus("authenticated");
+    }
+
+    axios.get("/admin/me", hasRealToken ? { headers: { Authorization: `Bearer ${auth.token}` } } : undefined)
       .then((res) => {
         if (!active) return;
         storeAdminAuth(res.data);
         setAllowed(canAccessAdminSection(section));
         setStatus("authenticated");
       })
-      .catch(() => {
+      .catch((err) => {
         if (!active) return;
+        const statusCode = err.response?.status;
+        if (hasStoredAccess && ![401, 403].includes(statusCode)) {
+          return;
+        }
         clearAdminAuth();
         setStatus("unauthenticated");
       });
