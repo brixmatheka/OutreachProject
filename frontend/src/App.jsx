@@ -42,7 +42,6 @@ const MemberProtectedRoute = ({ children }) => {
     axios.get("/auth/me")
       .then((res) => {
         if (!active) return;
-        localStorage.removeItem("memberToken");
         localStorage.setItem("memberSession", "true");
         localStorage.setItem("memberName", res.data.firstName);
         localStorage.setItem("memberLastName", res.data.lastName || "");
@@ -119,7 +118,6 @@ function App() {
   useEffect(() => {
     axios.get("/auth/me")
       .then((res) => {
-        localStorage.removeItem("memberToken");
         localStorage.setItem("memberSession", "true");
         localStorage.setItem("memberName", res.data.firstName);
         localStorage.setItem("memberLastName", res.data.lastName || "");

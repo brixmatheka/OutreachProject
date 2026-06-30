@@ -855,6 +855,7 @@ app.post("/auth/signup", authLimiter, async (req, res) => {
     logInfo("User registration successful");
     res.status(201).json({
       authenticated: true,
+      token,
       member: { id: member._id, memberId: member.memberId, firstName: member.firstName, lastName: member.lastName, email: member.email, phone: member.phone, idNo: member.idNo },
     });
   } catch (err) {
@@ -888,6 +889,7 @@ app.post("/auth/login", authLimiter, async (req, res) => {
     logInfo("User login successful");
     res.json({
       authenticated: true,
+      token,
       member: { id: member._id, memberId: member.memberId, firstName: member.firstName, lastName: member.lastName, email: member.email, phone: member.phone },
     });
   } catch (err) {
@@ -979,6 +981,7 @@ app.post("/admin/login", authLimiter, async (req, res) => {
   logInfo("Admin login successful", { role });
   res.json({
     authenticated: true,
+    token,
     admin: {
       name: adminAccount.name,
       role,

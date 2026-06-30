@@ -36,8 +36,11 @@ export function getAdminAuth() {
     permissions = [];
   }
 
+  const storedToken = [localStorage.getItem("adminToken"), localStorage.getItem("token")]
+    .find((value) => value && !["null", "undefined", "cookie-session"].includes(value.toLowerCase()));
+
   return {
-    token: localStorage.getItem("adminSession") ? "cookie-session" : null,
+    token: storedToken || (localStorage.getItem("adminSession") ? "cookie-session" : null),
     role: localStorage.getItem("adminRole"),
     roleLabel: localStorage.getItem("adminRoleLabel"),
     permissions,
@@ -50,11 +53,13 @@ export function canAccessAdminSection(section) {
 }
 
 export function storeAdminAuth(data) {
+  const token = data?.token || [localStorage.getItem("adminToken"), localStorage.getItem("token")]
+    .find((value) => value && !["null", "undefined", "cookie-session"].includes(value.toLowerCase()));
   const admin = data?.admin || {};
 
   localStorage.setItem("adminSession", "true");
-  localStorage.setItem("token", "cookie-session");
-  localStorage.setItem("adminToken", "cookie-session");
+  localStorage.setItem("token", token || "cookie-session");
+  localStorage.setItem("adminToken", token || "cookie-session");
   if (admin.role) localStorage.setItem("adminRole", admin.role);
   if (admin.roleLabel) localStorage.setItem("adminRoleLabel", admin.roleLabel);
   if (admin.name) localStorage.setItem("adminName", admin.name);
