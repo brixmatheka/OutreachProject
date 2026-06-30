@@ -51,6 +51,6 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        value: https://outreachproject-3.onrender.com
+        value: https://outreach-backend.onrender.com
       - key: VITE_SITE_URL
         value: https://outreachhopechurchsunshine.onrender.com

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import axios from "axios";
+import axios from "../apiConfig";
 import { clearAdminAuth, storeAdminAuth } from "../adminAccess";
 
 function AdminLogin() {
