@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-import { API_URL } from "./apiConfig" // Ensure axios is configured with auth interceptor
-import axios from "axios"
+import axios, { API_URL } from "./apiConfig" // Ensure axios is configured with auth interceptor
 import './App.css'
 import { Routes, Route, Link, Navigate, useLocation, useNavigate } from "react-router-dom"
 import AdminLogin from "./pages/AdminLogin"
@@ -30,7 +29,7 @@ import AdminGallery from "./pages/AdminGallery"
 import AdminMinisters from "./pages/AdminMinisters"
 import AdminSermons from "./pages/AdminSermons"
 import Sermons from "./pages/Sermons"
-import { canAccessAdminSection, clearAdminAuth, storeAdminAuth } from "./adminAccess"
+import { canAccessAdminSection, clearAdminAuth, getAdminAuth, storeAdminAuth } from "./adminAccess"
 
 // Protected Route for Members
 const MemberProtectedRoute = ({ children }) => {
@@ -73,8 +72,10 @@ const AdminProtectedRoute = ({ section, children }) => {
 
   useEffect(() => {
     let active = true;
+    const { token } = getAdminAuth();
+    const hasRealToken = token && token !== "cookie-session";
 
-    axios.get("/admin/me")
+    axios.get("/admin/me", hasRealToken ? { headers: { Authorization: `Bearer ${token}` } } : undefined)
       .then((res) => {
         if (!active) return;
         storeAdminAuth(res.data);
