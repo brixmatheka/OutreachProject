@@ -170,6 +170,15 @@ function App() {
     return `${API_URL}${url.startsWith("/") ? url : `/${url}`}`;
   };
 
+  const homeBackgroundVars = {
+    "--home-hero-image": `url("${fileUrl("/uploads/1780993875082-672921.JPG")}")`,
+    "--home-card-image-1": `url("${fileUrl("/uploads/1780993874724-250065.JPG")}")`,
+    "--home-card-image-2": `url("${fileUrl("/uploads/1780993874956-76107.JPG")}")`,
+    "--home-card-image-3": `url("${fileUrl("/uploads/1780993874806-394884.JPG")}")`,
+    "--home-card-image-4": `url("${fileUrl("/uploads/1780993874755-44006.JPG")}")`,
+    "--home-card-image-5": `url("${fileUrl("/uploads/1780993875049-294274.JPG")}")`
+  };
+
   const formatEventDate = (value) => {
     if (!value) return "Date coming soon";
     const date = new Date(value);
@@ -238,7 +247,7 @@ function App() {
 
     return (
       <aside
-        className={`home-event-announcement ${eventAnnouncementClosing ? "closing" : ""}`}
+        className={`home-event-banner ${banner ? "has-image" : "no-image"} ${eventAnnouncementClosing ? "closing" : ""}`}
         role="button"
         tabIndex={0}
         onClick={openEventAnnouncement}
@@ -250,19 +259,29 @@ function App() {
         }}
         aria-label={`Open upcoming event ${upcomingEvent.title}`}
       >
-        {banner && <img src={banner} alt="" className="home-event-announcement-img" />}
-        <div className="home-event-announcement-body">
-          <span className="home-event-announcement-kicker">Next Event</span>
-          <strong className="home-event-announcement-title">{upcomingEvent.title}</strong>
-          <span className="home-event-announcement-meta">
-            {formatEventDate(upcomingEvent.date)}
-            {upcomingEvent.time ? ` | ${upcomingEvent.time}` : ""}
+        <span className="home-event-banner-shine" aria-hidden="true" />
+        <span className="home-event-banner-stripe" aria-hidden="true" />
+        {banner && (
+          <span className="home-event-banner-media" aria-hidden="true">
+            <img src={banner} alt="" className="home-event-banner-img" />
           </span>
-          {upcomingEvent.location && <span className="home-event-announcement-location">{upcomingEvent.location}</span>}
+        )}
+        <div className="home-event-banner-body">
+          <span className="home-event-banner-kicker">
+            <span className="home-event-banner-dot" aria-hidden="true" />
+            Upcoming Event
+          </span>
+          <strong className="home-event-banner-title">{upcomingEvent.title}</strong>
+          <div className="home-event-banner-meta">
+            <span>{formatEventDate(upcomingEvent.date)}</span>
+            {upcomingEvent.time && <span>{upcomingEvent.time}</span>}
+          </div>
+          {upcomingEvent.location && <span className="home-event-banner-location">{upcomingEvent.location}</span>}
+          <span className="home-event-banner-action" aria-hidden="true">View details</span>
         </div>
         <button
           type="button"
-          className="home-event-announcement-close"
+          className="home-event-banner-close"
           aria-label="Close event announcement"
           onClick={(event) => {
             event.stopPropagation();
@@ -361,17 +380,17 @@ function App() {
     <Routes>
       {/* Home route */}
       <Route path="/" element={
-        <div className="app-root">
+        <div className="app-root" style={homeBackgroundVars}>
           {renderHeader()}
           {renderEventAnnouncement()}
 
           <main className="app-main">
             <section className="hero">
               <div className="hero-content">
-                <h1>OUTREACH HOPE CONNECT</h1>
+                <h1>OUTREACH HOPE CHURCH SUNSHINE</h1>
                 <p className="hero-subtitle">"Where the Word is Preached and Love is Experienced"</p>
                 <div className="hero-cta">
-                  <Link to="/about" className="hero-btn-primary">WHO ARE WE</Link>
+                  <Link to="/about" className="hero-btn-primary">Discover OHC</Link>
                   <Link to="/give" className="hero-btn-secondary">Give Online</Link>
                 </div>
               </div>
