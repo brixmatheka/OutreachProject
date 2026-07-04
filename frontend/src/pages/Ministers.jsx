@@ -145,6 +145,21 @@ function Ministers() {
       .finally(() => setLoading(false));
   }, []);
 
+  const mediaUrl = (url) => {
+    if (!url) return "";
+    if (/^https?:\/\//i.test(url)) return url;
+    return `${API}${url.startsWith("/") ? url : `/${url}`}`;
+  };
+
+  const initialsFor = (name = "") =>
+    name
+      .split(" ")
+      .map((word) => word[0])
+      .filter(Boolean)
+      .join("")
+      .slice(0, 3)
+      .toUpperCase() || "OHC";
+
   const placeholder = (initials) => `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><defs><linearGradient id='g' x1='0' x2='1' y1='0' y2='1'><stop stop-color='%230ea5e9'/><stop offset='1' stop-color='%2306517a'/></linearGradient></defs><rect width='240' height='240' rx='32' fill='url(%23g)'/><circle cx='120' cy='86' r='42' fill='rgba(255,255,255,0.18)'/><rect x='56' y='140' width='128' height='38' rx='19' fill='rgba(255,255,255,0.18)'/><text x='50%' y='210' text-anchor='middle' font-family='Arial, sans-serif' font-size='20' fill='white'>${initials}</text></svg>`)}`;
 
   return (
@@ -180,9 +195,13 @@ function Ministers() {
               <div key={minister._id} className="minister-card" style={styles.card}>
                 <div style={styles.avatarContainer}>
                   <img
-                    src={minister.photoUrl ? `${API}${minister.photoUrl}` : placeholder(minister.name.split(" ").map(w => w[0]).join("").slice(0, 3))}
+                    src={mediaUrl(minister.photoUrl) || placeholder(initialsFor(minister.name))}
                     alt={minister.name}
                     style={styles.avatar}
+                    onError={(event) => {
+                      event.currentTarget.onerror = null;
+                      event.currentTarget.src = placeholder(initialsFor(minister.name));
+                    }}
                   />
                 </div>
                 <div style={styles.cardBody}>

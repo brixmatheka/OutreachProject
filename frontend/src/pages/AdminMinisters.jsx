@@ -14,11 +14,15 @@ export default function AdminMinisters() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  const [galleryImages, setGalleryImages] = useState([]);
+  const [galleryLoading, setGalleryLoading] = useState(false);
 
   // Add / Edit form
   const [form, setForm] = useState(defaultForm);
   const [photoFile, setPhotoFile] = useState(null);
+  const [galleryPhotoUrl, setGalleryPhotoUrl] = useState("");
   const [photoPreview, setPhotoPreview] = useState("");
+  const [photoPreviewError, setPhotoPreviewError] = useState(false);
   const [editingId, setEditingId] = useState(null); // null = add mode
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -39,13 +43,71 @@ export default function AdminMinisters() {
     }
   }
 
-  useEffect(() => { fetchMinisters(); }, []);
+  async function fetchGalleryImages() {
+    setGalleryLoading(true);
+    try {
+      const res = await axios.get(`${API}/api/gallery`);
+      const seen = new Set();
+      const images = [];
+
+      (res.data || []).forEach((folder) => {
+        const files = folder.files || [];
+        files
+          .filter((file) => file.type === "image" && file.url)
+          .forEach((file) => {
+            if (seen.has(file.url)) return;
+            seen.add(file.url);
+            images.push({ url: file.url, title: folder.title || "Gallery image" });
+          });
+
+        if (folder.coverUrl && !seen.has(folder.coverUrl)) {
+          seen.add(folder.coverUrl);
+          images.push({ url: folder.coverUrl, title: folder.title || "Gallery cover" });
+        }
+      });
+
+      setGalleryImages(images);
+    } catch {
+      showToast("Failed to load gallery images.", "error");
+    } finally {
+      setGalleryLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchMinisters();
+    fetchGalleryImages();
+  }, []);
+
+  function mediaUrl(url) {
+    if (!url) return "";
+    if (/^https?:\/\//i.test(url)) return url;
+    return `${API}${url.startsWith("/") ? url : `/${url}`}`;
+  }
+
+  function photoPlaceholder(initial = "O") {
+    const safeInitial = String(initial || "O").slice(0, 1).toUpperCase();
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='320' height='220'><defs><linearGradient id='g' x1='0' x2='1' y1='0' y2='1'><stop stop-color='#0ea5e9'/><stop offset='1' stop-color='#082f49'/></linearGradient></defs><rect width='320' height='220' fill='url(#g)'/><text x='50%' y='54%' text-anchor='middle' font-family='Arial, sans-serif' font-size='72' font-weight='700' fill='white'>${safeInitial}</text></svg>`)}`;
+  }
 
   function handlePhotoChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
     setPhotoFile(file);
+    setGalleryPhotoUrl("");
+    setPhotoPreviewError(false);
     setPhotoPreview(URL.createObjectURL(file));
+  }
+
+  function handleGalleryPhotoUrlChange(value) {
+    setGalleryPhotoUrl(value);
+    setPhotoFile(null);
+    setPhotoPreviewError(false);
+    setPhotoPreview(value.trim() ? mediaUrl(value.trim()) : "");
+  }
+
+  function selectGalleryImage(url) {
+    handleGalleryPhotoUrlChange(url);
   }
 
   function startEdit(minister) {
@@ -56,8 +118,10 @@ export default function AdminMinisters() {
       bio: minister.bio || "",
       order: minister.order ?? 0,
     });
-    setPhotoPreview(minister.photoUrl ? `${API}${minister.photoUrl}` : "");
+    setPhotoPreview(minister.photoUrl ? mediaUrl(minister.photoUrl) : "");
+    setGalleryPhotoUrl("");
     setPhotoFile(null);
+    setPhotoPreviewError(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -65,7 +129,9 @@ export default function AdminMinisters() {
     setEditingId(null);
     setForm(defaultForm);
     setPhotoFile(null);
+    setGalleryPhotoUrl("");
     setPhotoPreview("");
+    setPhotoPreviewError(false);
   }
 
   // ── Save (create or update) ──────────────────────────────────────────────────
@@ -85,6 +151,7 @@ export default function AdminMinisters() {
     fd.append("bio", form.bio);
     fd.append("order", form.order);
     if (photoFile) fd.append("photo", photoFile);
+    if (!photoFile && galleryPhotoUrl.trim()) fd.append("photoUrl", galleryPhotoUrl.trim());
 
     try {
       if (editingId) {
@@ -182,13 +249,68 @@ export default function AdminMinisters() {
               <div style={s.formGroup}>
                 <label style={s.fieldLabel}>Photo</label>
                 <label style={s.photoLabel}>
-                  {photoPreview
-                    ? <img src={photoPreview} alt="preview" style={s.photoPreview} />
+                  {photoPreview && !photoPreviewError
+                    ? (
+                      <img
+                        src={photoPreview}
+                        alt="preview"
+                        style={s.photoPreview}
+                        onError={() => setPhotoPreviewError(true)}
+                      />
+                    )
                     : <span style={{ color: "#7dd3fc", fontSize: "0.88rem" }}>Click to choose a photo</span>
                   }
                   <input type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: "none" }} />
                 </label>
+                {photoPreviewError && (
+                  <span style={s.previewError}>Preview failed. Confirm the gallery URL still exists.</span>
+                )}
               </div>
+            </div>
+
+            <div style={s.galleryTool}>
+              <div style={s.formGroup}>
+                <label style={s.fieldLabel}>Use Existing Gallery Image URL</label>
+                <input
+                  style={s.input}
+                  placeholder="Paste /uploads/image.JPG or a full gallery image URL"
+                  value={galleryPhotoUrl}
+                  onChange={(e) => handleGalleryPhotoUrlChange(e.target.value)}
+                />
+                <span style={s.helperText}>
+                  Leave this empty to keep the current photo while editing. Choosing a new file overrides this URL.
+                </span>
+              </div>
+
+              <div style={s.galleryHeader}>
+                <span style={s.fieldLabel}>Gallery Images</span>
+                <button type="button" onClick={fetchGalleryImages} style={s.refreshBtn} disabled={galleryLoading}>
+                  {galleryLoading ? "Loading..." : "Refresh"}
+                </button>
+              </div>
+
+              {galleryLoading ? (
+                <p style={s.helperText}>Loading gallery images...</p>
+              ) : galleryImages.length === 0 ? (
+                <p style={s.helperText}>No gallery images found yet.</p>
+              ) : (
+                <div style={s.galleryThumbGrid}>
+                  {galleryImages.slice(0, 24).map((image) => {
+                    const selected = galleryPhotoUrl.trim() === image.url;
+                    return (
+                      <button
+                        key={image.url}
+                        type="button"
+                        title={image.title}
+                        style={{ ...s.galleryThumb, ...(selected ? s.galleryThumbActive : {}) }}
+                        onClick={() => selectGalleryImage(image.url)}
+                      >
+                        <img src={mediaUrl(image.url)} alt={image.title} style={s.galleryThumbImg} />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div style={s.formGroup}>
@@ -228,7 +350,17 @@ export default function AdminMinisters() {
                 <div key={m._id} style={s.ministerCard}>
                   <div style={s.photoBox}>
                     {m.photoUrl
-                      ? <img src={`${API}${m.photoUrl}`} alt={m.name} style={s.photo} />
+                      ? (
+                        <img
+                          src={mediaUrl(m.photoUrl)}
+                          alt={m.name}
+                          style={s.photo}
+                          onError={(event) => {
+                            event.currentTarget.onerror = null;
+                            event.currentTarget.src = photoPlaceholder(m.name);
+                          }}
+                        />
+                      )
                       : <div style={s.photoPlaceholder}>{m.name.charAt(0)}</div>
                     }
                   </div>
@@ -270,6 +402,15 @@ const s = {
   input: { padding: "10px 14px", background: "rgba(15,23,42,0.7)", border: "1.5px solid rgba(125,211,252,0.2)", borderRadius: "10px", color: "#f8fafc", fontSize: "0.92rem", outline: "none", width: "100%", boxSizing: "border-box" },
   photoLabel: { cursor: "pointer", width: "100%", height: "120px", border: "2px dashed rgba(125,211,252,0.4)", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", background: "rgba(14,165,233,0.05)" },
   photoPreview: { width: "100%", height: "100%", objectFit: "cover" },
+  previewError: { color: "#fca5a5", fontSize: "0.78rem", lineHeight: 1.4 },
+  helperText: { color: "#94a3b8", fontSize: "0.8rem", lineHeight: 1.45, margin: 0 },
+  galleryTool: { display: "grid", gap: "12px", padding: "14px", border: "1px solid rgba(125,211,252,0.16)", borderRadius: "14px", background: "rgba(2,6,23,0.22)" },
+  galleryHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" },
+  refreshBtn: { background: "rgba(14,165,233,0.12)", color: "#7dd3fc", border: "1px solid rgba(14,165,233,0.25)", borderRadius: "8px", padding: "6px 12px", cursor: "pointer", fontSize: "0.78rem", fontWeight: 700 },
+  galleryThumbGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))", gap: "9px", maxHeight: "220px", overflowY: "auto", paddingRight: "4px" },
+  galleryThumb: { height: "72px", padding: 0, border: "1px solid rgba(148,163,184,0.22)", borderRadius: "10px", overflow: "hidden", cursor: "pointer", background: "rgba(15,23,42,0.7)" },
+  galleryThumbActive: { borderColor: "#fbbf24", boxShadow: "0 0 0 3px rgba(251,191,36,0.2)" },
+  galleryThumbImg: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
   primaryBtn: { background: "linear-gradient(135deg, #0ea5e9, #2563eb)", color: "#fff", border: "none", borderRadius: "10px", padding: "11px 24px", fontWeight: 700, cursor: "pointer", fontSize: "0.92rem" },
   secondaryBtn: { background: "rgba(15,23,42,0.85)", color: "#e2e8f0", border: "1px solid rgba(148,163,184,0.25)", borderRadius: "10px", padding: "11px 20px", fontWeight: 600, cursor: "pointer", fontSize: "0.92rem" },
   grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "18px" },

@@ -547,6 +547,64 @@ function resolveUploadPath(urlPath) {
   return filePath.startsWith(uploadsDir + path.sep) ? filePath : null;
 }
 
+function normalizeExistingUploadImageUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  let pathname = raw;
+  if (/^https?:\/\//i.test(raw)) {
+    try {
+      pathname = new URL(raw).pathname;
+    } catch {
+      return null;
+    }
+  }
+
+  if (!pathname.startsWith("/uploads/")) return null;
+
+  const filename = path.basename(pathname);
+  const normalized = `/uploads/${filename}`;
+  const ext = path.extname(filename).toLowerCase();
+  const filePath = resolveUploadPath(normalized);
+
+  if (![".jpeg", ".jpg", ".png", ".gif", ".webp"].includes(ext) || !filePath || !fs.existsSync(filePath)) return null;
+  if (!hasAllowedMagicBytes(filePath, ext)) return null;
+
+  return normalized;
+}
+
+async function isGalleryImageUrl(url) {
+  if (!url) return false;
+  const item = await Media.exists({
+    $or: [
+      { coverUrl: url },
+      { files: { $elemMatch: { url, type: "image" } } }
+    ]
+  });
+  return Boolean(item);
+}
+
+async function deleteMinisterPhotoIfOrphan(photoUrl, excludedMinisterId = null) {
+  const filePath = resolveUploadPath(photoUrl);
+  if (!filePath || !fs.existsSync(filePath)) return;
+
+  const [galleryUsesPhoto, otherMinisterUsesPhoto] = await Promise.all([
+    isGalleryImageUrl(photoUrl),
+    Minister.exists({
+      photoUrl,
+      ...(excludedMinisterId ? { _id: { $ne: excludedMinisterId } } : {})
+    })
+  ]);
+
+  if (galleryUsesPhoto || otherMinisterUsesPhoto) return;
+
+  try {
+    fs.unlinkSync(filePath);
+  } catch (err) {
+    logError("Failed to delete minister photo from disk", err);
+  }
+}
+
 function hasAllowedDocumentBytes(filePath, ext) {
   const buffer = fs.readFileSync(filePath);
   if (buffer.length < 4) return false;
@@ -2269,9 +2327,20 @@ app.post("/api/ministers", uploadLimiter, verifyToken, requireAdminRoles(ROLES.S
       return res.status(400).json({ message: "Uploaded file content does not match an allowed media type." });
     }
     const { name, role, bio, order } = req.body;
-    if (!name || !role) return res.status(400).json({ message: "Name and role are required." });
+    if (!name || !role) {
+      removeUploadedFiles([req.file]);
+      return res.status(400).json({ message: "Name and role are required." });
+    }
 
-    const photoUrl = req.file ? `/uploads/${req.file.filename}` : "";
+    let photoUrl = req.file ? `/uploads/${req.file.filename}` : "";
+    if (!req.file && req.body.photoUrl) {
+      const galleryPhotoUrl = normalizeExistingUploadImageUrl(req.body.photoUrl);
+      if (!galleryPhotoUrl || !(await isGalleryImageUrl(galleryPhotoUrl))) {
+        return res.status(400).json({ message: "Gallery photo URL must point to an existing gallery image." });
+      }
+      photoUrl = galleryPhotoUrl;
+    }
+
     const minister = new Minister({
       name: truncateText(name, 120),
       role: truncateText(role, 120),
@@ -2302,14 +2371,17 @@ app.put("/api/ministers/:id", uploadLimiter, verifyToken, requireAdminRoles(ROLE
     if (order !== undefined) minister.order = Number(order);
 
     if (req.file) {
-      // Delete old photo from disk
-      if (minister.photoUrl) {
-        const oldPath = resolveUploadPath(minister.photoUrl);
-        if (oldPath && fs.existsSync(oldPath)) {
-          try { fs.unlinkSync(oldPath); } catch {}
-        }
-      }
+      await deleteMinisterPhotoIfOrphan(minister.photoUrl, minister._id);
       minister.photoUrl = `/uploads/${req.file.filename}`;
+    } else if (req.body.photoUrl) {
+      const galleryPhotoUrl = normalizeExistingUploadImageUrl(req.body.photoUrl);
+      if (!galleryPhotoUrl || !(await isGalleryImageUrl(galleryPhotoUrl))) {
+        return res.status(400).json({ message: "Gallery photo URL must point to an existing gallery image." });
+      }
+      if (galleryPhotoUrl !== minister.photoUrl) {
+        await deleteMinisterPhotoIfOrphan(minister.photoUrl, minister._id);
+      }
+      minister.photoUrl = galleryPhotoUrl;
     }
 
     await minister.save();
@@ -2325,13 +2397,7 @@ app.delete("/api/ministers/:id", verifyToken, requireAdminRoles(ROLES.SUPER_ADMI
     const minister = await Minister.findById(req.params.id);
     if (!minister) return res.status(404).json({ message: "Minister not found." });
 
-    // Delete photo from disk
-    if (minister.photoUrl) {
-      const filePath = resolveUploadPath(minister.photoUrl);
-      if (filePath && fs.existsSync(filePath)) {
-        try { fs.unlinkSync(filePath); } catch {}
-      }
-    }
+    await deleteMinisterPhotoIfOrphan(minister.photoUrl, minister._id);
     await minister.deleteOne();
     res.json({ message: "Minister deleted." });
   } catch (err) {
