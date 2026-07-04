@@ -452,7 +452,8 @@ function validateStartupConfig() {
 
   if (isProduction) {
     requireConfigValue("CLIENT_ORIGIN", process.env.CLIENT_ORIGIN);
-    requireConfigValue("MPESA_CALLBACK_SECRET", MPESA_CALLBACK_SECRET);
+    const CALLBACK_SECRET =
+    process.env.MPESA_CALLBACK_SECRET || "";
     if (configuredAdminUsers.length === 0) {
       throw new Error("At least one admin account must be configured");
     }
