@@ -279,11 +279,13 @@ function AdminMembers() {
         const phone = (m.phone || "").toLowerCase();
         const memberId = (m.memberId || "").toLowerCase();
         const idNo = (m.idNo || "").toLowerCase();
+        const residence = (m.residence || "").toLowerCase();
         matchesSearch = fullName.includes(q) || 
                         email.includes(q) || 
                         phone.includes(q) || 
                         memberId.includes(q) || 
-                        idNo.includes(q);
+                        idNo.includes(q) ||
+                        residence.includes(q);
       }
       
       return matchesGender && matchesAge && matchesSearch;
@@ -332,6 +334,7 @@ function AdminMembers() {
               <th>Baptized</th>
               <th>Email</th>
               <th>Phone</th>
+              <th>Area of Residence</th>
               <th>Joined Date</th>
             </tr>
           </thead>
@@ -346,6 +349,7 @@ function AdminMembers() {
                 <td>${m.isBaptized ? "Yes" : "No"}</td>
                 <td>${m.email}</td>
                 <td>${m.phone}</td>
+                <td>${m.residence || "Not provided"}</td>
                 <td>${new Date(m.createdAt).toLocaleDateString()}</td>
               </tr>
             `).join('')}
@@ -372,7 +376,7 @@ function AdminMembers() {
       return;
     }
 
-    const headers = ["Member ID", "First Name", "Last Name", "Gender", "Age", "National ID", "Baptized", "Email", "Phone", "Joined Date"];
+    const headers = ["Member ID", "First Name", "Last Name", "Gender", "Age", "National ID", "Baptized", "Email", "Phone", "Area of Residence", "Joined Date"];
     const rows = filteredMembers.map(m => [
       m.memberId || "N/A",
       m.firstName,
@@ -383,6 +387,7 @@ function AdminMembers() {
       m.isBaptized ? "Yes" : "No",
       m.email,
       m.phone,
+      m.residence || "Not provided",
       new Date(m.createdAt).toLocaleDateString()
     ]);
 
@@ -459,7 +464,7 @@ function AdminMembers() {
               <input
                 type="text"
                 className="filter-in"
-                placeholder="Name, email, phone, ID..."
+                placeholder="Name, residence, email, phone, ID..."
                 style={styles.filterSearchInput}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -594,6 +599,7 @@ function AdminMembers() {
                     <th style={styles.th}>Baptized</th>
                     <th style={styles.th}>Email</th>
                     <th style={styles.th}>Phone</th>
+                    <th style={styles.th}>Residence</th>
                     <th style={styles.th}>Joined</th>
                     <th style={styles.th} className="no-print">Actions</th>
                   </tr>
@@ -637,6 +643,7 @@ function AdminMembers() {
                       </td>
                       <td style={styles.td}>{member.email}</td>
                       <td style={styles.td}>{member.phone}</td>
+                      <td style={styles.td}>{member.residence || "Not provided"}</td>
                       <td style={styles.td}>{new Date(member.createdAt).toLocaleDateString()}</td>
                       <td style={styles.td} className="no-print">
                         {activeTab === "Active" ? (

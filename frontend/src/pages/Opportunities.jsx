@@ -19,7 +19,9 @@ function Opportunities() {
             <ul style={styles.list}>
               <li>Church and ministry role openings</li>
               <li>Volunteer and internship opportunities</li>
+              <li>ADVERTISE HERE</li>
               <li>External links managed by the admin team</li>
+
             </ul>
           </article>
 

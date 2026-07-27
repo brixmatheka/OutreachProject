@@ -548,6 +548,44 @@ body {
   animation: eventAnnouncementIn 480ms cubic-bezier(.2, .9, .2, 1) both;
 }
 
+:focus-visible {
+  outline: 3px solid var(--primary-hover);
+  outline-offset: 3px;
+}
+
+.route-loader {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.9rem;
+  background: var(--bg-color);
+  color: var(--text-muted);
+}
+
+.route-loader-spinner {
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 3px solid rgba(148, 163, 184, 0.25);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: routeLoaderSpin 700ms linear infinite;
+}
+
+@keyframes routeLoaderSpin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .route-loader-spinner {
+    animation: none;
+  }
+}
+
 .home-event-announcement::after {
   content: "";
   position: absolute;

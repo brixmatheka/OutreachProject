@@ -1,6 +1,6 @@
 import { useState } from "react";
 import axios from "axios";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 function MemberSignup() {
   const [formData, setFormData] = useState({
@@ -8,6 +8,7 @@ function MemberSignup() {
     lastName: "",
     email: "",
     phone: "",
+    residence: "",
     gender: "",
     dateOfBirth: "",
     isBaptized: "false",
@@ -19,8 +20,6 @@ function MemberSignup() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [agreed, setAgreed] = useState(false);
-  const navigate = useNavigate();
-
   const calculateAge = (dobString) => {
     if (!dobString) return "";
     const today = new Date();
@@ -223,6 +222,21 @@ function MemberSignup() {
               <option value="Female">Female</option>
               <option value="Other">Other</option>
             </select>
+          </div>
+
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>Area of Residence</label>
+            <input
+              name="residence"
+              type="text"
+              required
+              value={formData.residence}
+              onChange={handleChange}
+              placeholder="e.g. Sunshine, Nairobi"
+              autoComplete="street-address"
+              maxLength={120}
+              style={styles.input}
+            />
           </div>
 
           <div style={styles.inputGroup}>

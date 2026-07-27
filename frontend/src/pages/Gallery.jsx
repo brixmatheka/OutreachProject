@@ -2,21 +2,33 @@ import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
 import { API_URL as API } from "../apiConfig";
+import { getWithRetry } from "../requestWithRetry";
 
 export default function Gallery() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
   const [filter, setFilter] = useState("all"); // all | image | video
   const [selectedFolder, setSelectedFolder] = useState(null); // stores the currently selected folder object
   const [lightbox, setLightbox] = useState(null); // opened media file item { url, type }
 
   useEffect(() => {
-    axios
-      .get(`${API}/api/gallery`)
-      .then((r) => setItems(r.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+    const controller = new AbortController();
+
+    getWithRetry("/api/gallery", { signal: controller.signal })
+      .then((r) => setItems(Array.isArray(r.data) ? r.data : []))
+      .catch((requestError) => {
+        if (requestError.name !== "CanceledError" && requestError.name !== "AbortError") {
+          setError("The gallery could not be loaded. Please check your connection and try again.");
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [reloadKey]);
 
   // Filter files within the opened folder
   const activeFiles = selectedFolder ? (selectedFolder.files || []) : [];
@@ -114,6 +126,22 @@ export default function Gallery() {
             <div className="gallery-spinner" />
             <p>Loading gallery…</p>
           </div>
+        ) : error ? (
+          <div className="gallery-empty" role="alert">
+            <span className="gallery-empty-icon">!</span>
+            <p>{error}</p>
+            <button
+              type="button"
+              className="gallery-back-folders-btn"
+              onClick={() => {
+                setLoading(true);
+                setError("");
+                setReloadKey((key) => key + 1);
+              }}
+            >
+              Try Again
+            </button>
+          </div>
         ) : items.length === 0 ? (
           <div className="gallery-empty">
             <span className="gallery-empty-icon">📷</span>
@@ -134,7 +162,7 @@ export default function Gallery() {
                 <div className="gallery-folder-preview-container">
                   {folder.coverUrl && (
                     <img
-                      src={`${API}${folder.coverUrl}`}
+                      src={mediaUrl(folder.coverUrl)}
                       alt={folder.title}
                       className="gallery-folder-preview"
                       loading="lazy"

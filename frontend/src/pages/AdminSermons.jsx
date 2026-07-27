@@ -70,6 +70,9 @@ const styles = {
 const fileUrl = (url) => url ? `${API_URL}${url}` : "";
 const dateInput = (value) => value ? new Date(value).toISOString().slice(0, 10) : "";
 const formatDate = (value) => value ? new Date(value).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "No date";
+const formatUploadDate = (value) => value
+  ? new Date(value).toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" })
+  : "Date unavailable";
 
 function AdminSermons() {
   const [form, setForm] = useState(emptyForm);
@@ -310,6 +313,9 @@ function AdminSermons() {
                   </div>
                   <h3 style={{ margin: "0 0 6px", fontSize: "1rem" }}>{sermon.title}</h3>
                   <p style={{ margin: 0, color: "#94a3b8", fontSize: "0.84rem" }}>{sermon.preacher} | {formatDate(sermon.sermonDate)}</p>
+                  <p style={{ margin: "6px 0 0", color: "#7dd3fc", fontSize: "0.76rem", fontWeight: 700 }}>
+                    Uploaded: {formatUploadDate(sermon.createdAt)}
+                  </p>
                   <p style={{ color: "#cbd5e1", fontSize: "0.84rem", minHeight: "42px" }}>{sermon.scripture}</p>
                   <div style={{ display: "flex", gap: "12px", color: "#94a3b8", fontSize: "0.78rem", marginBottom: "12px" }}>
                     <span>{sermon.views || 0} views</span>

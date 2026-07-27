@@ -853,7 +853,7 @@ app.get("/", (req, res) => {
 /* MEMBER SIGNUP */
 app.post("/auth/signup", authLimiter, async (req, res) => {
   try {
-    const { firstName, lastName, email, phone, gender, age, dateOfBirth, idNo, isBaptized, password } = req.body;
+    const { firstName, lastName, email, phone, residence, gender, age, dateOfBirth, idNo, isBaptized, password } = req.body;
     const normalizedEmail = normalizeEmail(email);
 
     const missingFields = [];
@@ -861,6 +861,7 @@ app.post("/auth/signup", authLimiter, async (req, res) => {
     if (!lastName) missingFields.push("Second Name");
     if (!normalizedEmail) missingFields.push("Email");
     if (!phone) missingFields.push("Phone");
+    if (!residence) missingFields.push("Area of Residence");
     if (!gender) missingFields.push("Gender");
     if (!password) missingFields.push("Password");
 
@@ -900,6 +901,7 @@ app.post("/auth/signup", authLimiter, async (req, res) => {
       lastName: truncateText(lastName, 80),
       email: normalizedEmail,
       phone: truncateText(phone, 30),
+      residence: truncateText(residence, 120),
       gender,
       age: age ? Number(age) : undefined,
       dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
@@ -915,7 +917,7 @@ app.post("/auth/signup", authLimiter, async (req, res) => {
     res.status(201).json({
       authenticated: true,
       token,
-      member: { id: member._id, memberId: member.memberId, firstName: member.firstName, lastName: member.lastName, email: member.email, phone: member.phone, idNo: member.idNo },
+      member: { id: member._id, memberId: member.memberId, firstName: member.firstName, lastName: member.lastName, email: member.email, phone: member.phone, residence: member.residence, idNo: member.idNo },
     });
   } catch (err) {
     handleServerError(res, err);
@@ -2033,6 +2035,7 @@ async function getRelatedSermons(sermon, limit = 4) {
 
 app.get("/api/sermons", async (req, res) => {
   try {
+    res.set("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
     const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(Number(req.query.limit) || 9, 1), 24);
     const filter = buildSermonFilter(req.query, true);
@@ -2058,6 +2061,7 @@ app.get("/api/sermons", async (req, res) => {
 
 app.get("/api/sermons/featured", async (req, res) => {
   try {
+    res.set("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
     const [featured, latest] = await Promise.all([
       Sermon.find({ isPublished: true, isFeatured: true }).sort({ sermonDate: -1 }).limit(3),
       Sermon.find({ isPublished: true }).sort({ sermonDate: -1 }).limit(6)
@@ -2269,7 +2273,8 @@ app.post("/api/gallery/upload", uploadLimiter, verifyToken, requireAdminRoles(RO
 /* GET ALL GALLERY MEDIA (public — sorted by uploadedAt desc) */
 app.get("/api/gallery", async (req, res) => {
   try {
-    const items = await Media.find().sort({ uploadedAt: -1 });
+    res.set("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+    const items = await Media.find().sort({ uploadedAt: -1 }).lean();
     res.json(items);
   } catch (err) {
     handleServerError(res, err);

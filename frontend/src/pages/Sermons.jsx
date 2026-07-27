@@ -3,6 +3,7 @@ import axios from "axios";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { API_URL, SITE_URL } from "../apiConfig";
 import CloseButton from "../components/CloseButton";
+import { getWithRetry } from "../requestWithRetry";
 
 const bookmarkKey = "bookmarkedSermons";
 const emptyMeta = { page: 1, pages: 1, total: 0, categories: [], preachers: [] };
@@ -679,11 +680,12 @@ function SermonDetail({ id }) {
 
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
     setLoading(true);
     setError("");
     setToast("");
 
-    axios.get(`/api/sermons/${id}`)
+    getWithRetry(`/api/sermons/${id}`, { signal: controller.signal })
       .then((res) => {
         if (!active) return;
         setSermon(res.data.sermon);
@@ -701,7 +703,10 @@ function SermonDetail({ id }) {
         if (active) setLoading(false);
       });
 
-    return () => { active = false; };
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, [id]);
 
   if (loading) {
@@ -859,6 +864,7 @@ function Sermons() {
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [downloadingKey, setDownloadingKey] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
   const { bookmarks, toggle } = useBookmarks();
   const debouncedQuery = useDebouncedValue(filters.q);
 
@@ -927,16 +933,25 @@ function Sermons() {
     setLoading(true);
     setError("");
 
-    Promise.all([
-      axios.get("/api/sermons", { params }),
-      axios.get("/api/sermons/featured"),
+    const controller = new AbortController();
+    Promise.allSettled([
+      getWithRetry("/api/sermons", { params, signal: controller.signal }),
+      getWithRetry("/api/sermons/featured", { signal: controller.signal }),
     ])
-      .then(([listRes, featuredRes]) => {
+      .then(([listResult, featuredResult]) => {
         if (!active) return;
+        if (listResult.status === "rejected") throw listResult.reason;
+
+        const listRes = listResult.value;
         setSermons(listRes.data.sermons || []);
         setMeta({ ...emptyMeta, ...listRes.data });
-        setFeatured(featuredRes.data.featured || []);
-        setLatest(featuredRes.data.latest || []);
+        if (featuredResult.status === "fulfilled") {
+          setFeatured(featuredResult.value.data.featured || []);
+          setLatest(featuredResult.value.data.latest || []);
+        } else {
+          setFeatured([]);
+          setLatest(listRes.data.sermons?.slice(0, 6) || []);
+        }
       })
       .catch(() => {
         if (active) {
@@ -949,8 +964,11 @@ function Sermons() {
         if (active) setLoading(false);
       });
 
-    return () => { active = false; };
-  }, [id, params]);
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [id, params, reloadKey]);
 
   if (id) return <SermonDetail id={id} />;
 
@@ -1084,7 +1102,7 @@ function Sermons() {
         {loading ? (
           <LoadingCards />
         ) : error ? (
-          <EmptyState title="Library unavailable" message={error} action={<button type="button" style={actionStyle("primary")} onClick={resetFilters}>Reset Filters</button>} />
+          <EmptyState title="Library unavailable" message={error} action={<button type="button" style={actionStyle("primary")} onClick={() => setReloadKey((key) => key + 1)}>Try Again</button>} />
         ) : sermons.length === 0 ? (
           <EmptyState title="No sermons found" message="There are no sermons matching this view." action={<button type="button" style={actionStyle("primary")} onClick={resetFilters}>Show All Sermons</button>} />
         ) : (

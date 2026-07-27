@@ -1,35 +1,43 @@
-import { useState, useEffect } from 'react'
+import { lazy, Suspense, useState, useEffect } from 'react'
 import axios, { API_URL } from "./apiConfig" // Ensure axios is configured with auth interceptor
 import './App.css'
 import { Routes, Route, Link, Navigate, useLocation, useNavigate } from "react-router-dom"
-import AdminLogin from "./pages/AdminLogin"
-import AdminDashboard from "./pages/AdminDashboard"
-import AdminEvents from "./pages/AdminEvents"
-import AdminProjects from "./pages/AdminProjects"
-import AdminPrayerRequests from "./pages/AdminPrayerRequests"
-import AdminTransactions from "./pages/AdminTransactions"
-import AdminMembers from "./pages/AdminMembers"
-import About from "./pages/About"
-import Give from "./pages/Give"
-import Services from "./pages/Services"
-import Events from "./pages/Events"
-import Chatbox from "./pages/Chatbox"
-import Ministers from "./pages/Ministers"
-import PrayerRequests from "./pages/PrayerRequests"
-import OnlineService from "./pages/OnlineService"
-import MemberLogin from "./pages/MemberLogin"
-import MemberSignup from "./pages/MemberSignup"
-import BaptismRequest from "./pages/BaptismRequest"
-import AdminBaptism from "./pages/AdminBaptism"
-import Bible from "./pages/Bible"
-import Gallery from "./pages/Gallery"
-import Careers from "./pages/Careers"
-import Opportunities from "./pages/Opportunities"
-import AdminGallery from "./pages/AdminGallery"
-import AdminMinisters from "./pages/AdminMinisters"
-import AdminSermons from "./pages/AdminSermons"
-import Sermons from "./pages/Sermons"
 import { canAccessAdminSection, clearAdminAuth, getAdminAuth, storeAdminAuth } from "./adminAccess"
+
+const About = lazy(() => import("./pages/About"));
+const AdminBaptism = lazy(() => import("./pages/AdminBaptism"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const AdminEvents = lazy(() => import("./pages/AdminEvents"));
+const AdminGallery = lazy(() => import("./pages/AdminGallery"));
+const AdminLogin = lazy(() => import("./pages/AdminLogin"));
+const AdminMembers = lazy(() => import("./pages/AdminMembers"));
+const AdminMinisters = lazy(() => import("./pages/AdminMinisters"));
+const AdminPrayerRequests = lazy(() => import("./pages/AdminPrayerRequests"));
+const AdminProjects = lazy(() => import("./pages/AdminProjects"));
+const AdminSermons = lazy(() => import("./pages/AdminSermons"));
+const AdminTransactions = lazy(() => import("./pages/AdminTransactions"));
+const BaptismRequest = lazy(() => import("./pages/BaptismRequest"));
+const Bible = lazy(() => import("./pages/Bible"));
+const Careers = lazy(() => import("./pages/Careers"));
+const Chatbox = lazy(() => import("./pages/Chatbox"));
+const Events = lazy(() => import("./pages/Events"));
+const Gallery = lazy(() => import("./pages/Gallery"));
+const Give = lazy(() => import("./pages/Give"));
+const MemberLogin = lazy(() => import("./pages/MemberLogin"));
+const MemberSignup = lazy(() => import("./pages/MemberSignup"));
+const Ministers = lazy(() => import("./pages/Ministers"));
+const OnlineService = lazy(() => import("./pages/OnlineService"));
+const Opportunities = lazy(() => import("./pages/Opportunities"));
+const PrayerRequests = lazy(() => import("./pages/PrayerRequests"));
+const Sermons = lazy(() => import("./pages/Sermons"));
+const Services = lazy(() => import("./pages/Services"));
+
+const PageLoader = () => (
+  <div className="route-loader" role="status" aria-live="polite">
+    <span className="route-loader-spinner" aria-hidden="true" />
+    <span>Loading page…</span>
+  </div>
+);
 
 // Protected Route for Members
 const MemberProtectedRoute = ({ children }) => {
@@ -67,8 +75,17 @@ const MemberProtectedRoute = ({ children }) => {
 
 const AdminProtectedRoute = ({ section, children }) => {
   const location = useLocation();
-  const [status, setStatus] = useState("checking");
-  const [allowed, setAllowed] = useState(false);
+  const initialAuth = getAdminAuth();
+  const initiallyAllowed = Boolean(
+    initialAuth.token &&
+    initialAuth.role &&
+    canAccessAdminSection(section)
+  );
+  const [status, setStatus] = useState(() => {
+    if (!initialAuth.token || !initialAuth.role) return "unauthenticated";
+    return initiallyAllowed ? "authenticated" : "checking";
+  });
+  const [allowed, setAllowed] = useState(initiallyAllowed);
 
   useEffect(() => {
     let active = true;
@@ -78,15 +95,9 @@ const AdminProtectedRoute = ({ section, children }) => {
 
     if (!auth.token || !auth.role) {
       clearAdminAuth();
-      setStatus("unauthenticated");
       return () => {
         active = false;
       };
-    }
-
-    if (hasStoredAccess) {
-      setAllowed(true);
-      setStatus("authenticated");
     }
 
     axios.get("/admin/me", hasRealToken ? { headers: { Authorization: `Bearer ${auth.token}` } } : undefined)
@@ -135,6 +146,10 @@ function App() {
   }, []);
 
   useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [location.pathname]);
+
+  useEffect(() => {
     axios.get("/auth/me")
       .then((res) => {
         localStorage.setItem("memberSession", "true");
@@ -154,7 +169,7 @@ function App() {
   }, []);
 
   const handleLogout = () => {
-    axios.post("/auth/logout").catch(() => {});
+    axios.post("/auth/logout").catch(() => { });
     localStorage.removeItem("memberSession");
     localStorage.removeItem("memberToken");
     localStorage.removeItem("memberName");
@@ -299,7 +314,7 @@ function App() {
       <div className="header-top">
         <div className="brand">
           <Link to="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <img src="/logo.png" alt="OHC Logo" className="brand-logo-img" />
+            <img src="/logo.png" alt="" width="45" height="45" decoding="async" className="brand-logo-img" />
             <div className="brand-text">
               <span className="brand-name">OUTREACH HOPE CHURCH SUNSHINE</span>
               <span className="brand-tagline">HOUSE OF BREAD</span>
@@ -326,13 +341,17 @@ function App() {
 
         <button
           className="mobile-toggle"
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          type="button"
+          aria-label={isMobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+          aria-expanded={isMobileMenuOpen}
+          aria-controls="primary-navigation"
+          onClick={() => setIsMobileMenuOpen((open) => !open)}
         >
           {isMobileMenuOpen ? '✕' : '☰'}
         </button>
       </div>
 
-      <div className={`nav-container ${isMobileMenuOpen ? 'open' : ''}`}>
+      <nav id="primary-navigation" className={`nav-container ${isMobileMenuOpen ? 'open' : ''}`} aria-label="Primary navigation">
         {/* Mobile Auth */}
         <div className="mobile-auth">
           {memberName ? (
@@ -372,11 +391,12 @@ function App() {
             <button onClick={handleLogout} className="mobile-logout-btn">Log Out</button>
           </div>
         )}
-      </div>
+      </nav>
     </header>
   );
 
   return (
+    <Suspense fallback={<PageLoader />}>
     <Routes>
       {/* Home route */}
       <Route path="/" element={
@@ -390,7 +410,8 @@ function App() {
                 <h1>OUTREACH HOPE CHURCH SUNSHINE</h1>
                 <p className="hero-subtitle">"Where the Word is Preached and Love is Experienced"</p>
                 <div className="hero-cta">
-                  <Link to="/about" className="hero-btn-primary">Discover OHC</Link>
+                  <Link to="/events" className="hero-btn-primary">Events</Link>
+                  <Link to="/bible" className="hero-btn-secondary">Bible</Link>
                   <Link to="/give" className="hero-btn-secondary">Give Online</Link>
                 </div>
               </div>
@@ -413,7 +434,7 @@ function App() {
                   </ul>
                   <div className="feature-footer">
                     <span className="feature-pill">Family church</span>
-                    <span className="feature-pill">Outreach focused</span>
+                    <span className="feature-pill">House of Bread</span>
                   </div>
                 </div>
 
@@ -542,6 +563,7 @@ function App() {
       <Route path="/admin/gallery" element={<AdminProtectedRoute section="gallery"><AdminGallery /></AdminProtectedRoute>} />
       <Route path="/admin/ministers" element={<AdminProtectedRoute section="ministers"><AdminMinisters /></AdminProtectedRoute>} />
     </Routes>
+    </Suspense>
   )
 }
 

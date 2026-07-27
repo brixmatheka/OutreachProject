@@ -6,6 +6,7 @@ const memberSchema = new mongoose.Schema({
   lastName: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   phone: { type: String, required: true },
+  residence: { type: String, required: true },
   gender: { type: String, required: true },
   age: { type: Number },
   dateOfBirth: { type: Date },

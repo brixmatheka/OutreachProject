@@ -3,6 +3,10 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { SITE_URL } from "../apiConfig";
 
+const formatUploadDate = (value) => value
+  ? new Date(value).toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" })
+  : "Date unavailable";
+
 const styles = {
   page: {
     fontFamily: "'Poppins', 'Segoe UI', sans-serif",
@@ -627,6 +631,7 @@ const [title, setTitle] = useState("");
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px", flexWrap: "wrap", marginBottom: "8px" }}>
                           <div>
                             <h4 style={styles.eventTitle}>{event.title} <span style={{ fontSize: "0.8rem", color: "#94a3b8", fontWeight: 400 }}>({event.eventCode || "N/A"})</span></h4>
+                            <p style={{ margin: "0 0 6px", color: "#94a3b8", fontSize: "0.74rem" }}>Uploaded: {formatUploadDate(event.createdAt)}</p>
                             <p style={styles.eventDate}>
                               <span>📅</span> {new Date(event.date).toLocaleDateString("en-US", { weekday: 'long', year: "numeric", month: "long", day: "numeric" })}
                             </p>
@@ -725,6 +730,7 @@ const [title, setTitle] = useState("");
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px", flexWrap: "wrap", marginBottom: "8px" }}>
                           <div>
                             <h4 style={styles.eventTitlePast}>{event.title} <span style={{ fontSize: "0.8rem", color: "#64748b", fontWeight: 400, textDecoration: "none" }}>({event.eventCode || "N/A"})</span></h4>
+                            <p style={{ margin: "0 0 6px", color: "#64748b", fontSize: "0.74rem" }}>Uploaded: {formatUploadDate(event.createdAt)}</p>
                             <p style={styles.eventDatePast}>
                               <span>📁</span> {new Date(event.date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })} (Passed)
                             </p>

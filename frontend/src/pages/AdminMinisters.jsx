@@ -3,6 +3,10 @@ import { Link } from "react-router-dom";
 import axios from "axios";
 import { API_URL as API } from "../apiConfig";
 
+const formatUploadDate = (value) => value
+  ? new Date(value).toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" })
+  : "Date unavailable";
+
 function getAdminToken() {
   return localStorage.getItem("token") || localStorage.getItem("adminToken") || null;
 }
@@ -367,6 +371,9 @@ export default function AdminMinisters() {
                   <div style={s.cardBody}>
                     <h3 style={s.ministerName}>{m.name}</h3>
                     <p style={s.ministerRole}>{m.role}</p>
+                    <p style={{ margin: "4px 0", color: "#7dd3fc", fontSize: "0.76rem", fontWeight: 600 }}>
+                      Added: {formatUploadDate(m.createdAt)}
+                    </p>
                     {m.bio && <p style={s.ministerBio}>{m.bio}</p>}
                     <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
                       <button onClick={() => startEdit(m)} style={s.editBtn}>✏️ Edit</button>

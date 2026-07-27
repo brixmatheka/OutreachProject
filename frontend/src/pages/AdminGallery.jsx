@@ -3,6 +3,10 @@ import axios from "axios";
 import { Link } from "react-router-dom";
 import { API_URL as API } from "../apiConfig";
 
+const formatUploadDate = (value) => value
+  ? new Date(value).toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" })
+  : "Date unavailable";
+
 // ─── Helper: always read token fresh from localStorage ───────────────────────
 function getAdminToken() {
   return localStorage.getItem("token") || localStorage.getItem("adminToken") || null;
@@ -339,6 +343,7 @@ export default function AdminGallery() {
                             {folderItem.files?.length || 0}{" "}
                             {(folderItem.files?.length || 0) === 1 ? "item" : "items"}
                           </p>
+                          <p className="ag-folder-meta">Uploaded: {formatUploadDate(folderItem.uploadedAt)}</p>
                         </div>
                       </div>
 
