@@ -154,9 +154,18 @@ export default function Gallery() {
               <div
                 key={folder._id}
                 className="gallery-folder-card"
+                role="button"
+                tabIndex={0}
                 onClick={() => {
                   setSelectedFolder(folder);
                   setFilter("all");
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setSelectedFolder(folder);
+                    setFilter("all");
+                  }
                 }}
               >
                 <div className="gallery-folder-preview-container">
@@ -193,7 +202,15 @@ export default function Gallery() {
               <div
                 key={index}
                 className="gallery-card"
+                role="button"
+                tabIndex={0}
                 onClick={() => openLightbox(item)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    openLightbox(item);
+                  }
+                }}
               >
                 {item.type === "image" ? (
                   <img

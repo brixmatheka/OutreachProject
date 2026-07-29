@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { downloadCsvReport, downloadPdfReport, downloadWordReport, formatKes, formatReportDate } from "../adminReports";
 
 const styles = {
   page: { fontFamily: "'Poppins', 'Segoe UI', sans-serif", background: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)", minHeight: "100vh", color: "#f8fafc" },
@@ -84,11 +85,14 @@ const PrintStyle = () => (
 function AdminTransactions() {
   const [transactions, setTransactions] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [selectedStatus, setSelectedStatus] = useState("All");
   const [selectedPeriod, setSelectedPeriod] = useState("All");
   const [specificDate, setSpecificDate] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const token = localStorage.getItem("token");
   const navigate = useNavigate();
 
@@ -102,7 +106,8 @@ function AdminTransactions() {
     
     if (period === "This Week") {
       const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - now.getDay());
+      const daysSinceMonday = (now.getDay() + 6) % 7;
+      startOfWeek.setDate(now.getDate() - daysSinceMonday);
       startOfWeek.setHours(0, 0, 0, 0);
       return date >= startOfWeek;
     }
@@ -140,6 +145,7 @@ function AdminTransactions() {
 
   const finalFilteredTransactions = transactions.filter(t => {
     const matchesCategory = selectedCategory === "All" || t.category === selectedCategory;
+    const matchesStatus = selectedStatus === "All" || t.status === selectedStatus;
     const matchesPeriod = isWithinPeriod(t.createdAt, selectedPeriod);
 
     // Search filter: match against receipt number, member ID, or name
@@ -152,20 +158,28 @@ function AdminTransactions() {
       matchesSearch = receipt.includes(q) || memberId.includes(q) || fullName.includes(q);
     }
 
-    return matchesCategory && matchesPeriod && matchesSearch;
+    return matchesCategory && matchesStatus && matchesPeriod && matchesSearch;
   });
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = useCallback(async () => {
+    setLoading(true);
+    setError("");
     try {
       const res = await axios.get("/api/admin/transactions", { headers: { Authorization: token } });
       setTransactions(res.data);
-    } catch { setTransactions([]); }
-  };
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || "Transactions could not be loaded. Check the connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
 
-  useEffect(() => { if (token) fetchTransactions(); else navigate("/admin-login"); }, [token]);
+  useEffect(() => { if (token) fetchTransactions(); else navigate("/admin-login"); }, [fetchTransactions, navigate, token]);
 
   const completedTotal = finalFilteredTransactions.filter(t => t.status === "Completed").reduce((sum, t) => sum + t.amount, 0);
   const pendingTotal = finalFilteredTransactions.filter(t => t.status === "Pending").reduce((sum, t) => sum + t.amount, 0);
+  const failedTransactions = finalFilteredTransactions.filter(t => t.status === "Failed");
+  const failedTotal = failedTransactions.reduce((sum, t) => sum + t.amount, 0);
 
   const displayPeriod = selectedPeriod === "Specific Date" && specificDate 
     ? specificDate 
@@ -173,9 +187,39 @@ function AdminTransactions() {
       ? `${startDate || 'Start'} to ${endDate || 'End'}`
       : selectedPeriod;
 
+  const buildTransactionDocument = () => ({
+    title: `${selectedCategory} Financial Transactions`,
+    subtitle: "Giving, receipts, and payment-status register",
+    filters: { Category: selectedCategory, Status: selectedStatus, Period: displayPeriod, Search: searchQuery || "None" },
+    summary: {
+      "Total records": finalFilteredTransactions.length,
+      "Completed value": formatKes(completedTotal),
+      "Pending value": formatKes(pendingTotal),
+      "Failed transactions": `${failedTransactions.length} (${formatKes(failedTotal)})`,
+      "Completion rate": `${Math.round((finalFilteredTransactions.filter((item) => item.status === "Completed").length / finalFilteredTransactions.length) * 100)}%`,
+    },
+    columns: [
+      { label: "Date", value: (item) => formatReportDate(item.createdAt, true) },
+      { label: "Member ID", value: (item) => item.memberId || "Guest" },
+      { label: "Member / Donor", value: (item) => `${item.firstName || "Guest"} ${item.lastName || ""}`.trim() },
+      { label: "Phone", value: "phone" },
+      { label: "Amount", value: (item) => formatKes(item.amount) },
+      { label: "Category", value: "category" },
+      { label: "M-Pesa Receipt", value: (item) => item.mpesaReceiptNumber || "—" },
+      { label: "Checkout reference", value: (item) => item.checkoutRequestId || "—" },
+      { label: "Status", value: "status" },
+    ],
+    rows: finalFilteredTransactions,
+  });
+
   const downloadReport = () => {
     if (finalFilteredTransactions.length === 0) {
       alert("No transaction data available for the report.");
+      return;
+    }
+
+    if (downloadWordReport) {
+      downloadWordReport(buildTransactionDocument());
       return;
     }
 
@@ -259,6 +303,33 @@ function AdminTransactions() {
       return;
     }
 
+    if (downloadCsvReport) {
+      downloadCsvReport({
+        title: `${selectedCategory} Financial Transactions`,
+        filters: { Category: selectedCategory, Status: selectedStatus, Period: displayPeriod, Search: searchQuery || "None" },
+        headers: ["Date", "Member ID", "First Name", "Last Name", "Phone", "Amount (KES)", "Category", "M-Pesa Receipt", "Checkout Reference", "Status"],
+        rows: finalFilteredTransactions.map((item) => [
+          formatReportDate(item.createdAt, true),
+          item.memberId || "Guest",
+          item.firstName || "Guest",
+          item.lastName || "",
+          item.phone || "",
+          item.amount,
+          item.category || "",
+          item.mpesaReceiptNumber || "",
+          item.checkoutRequestId || "",
+          item.status || "",
+        ]),
+        summary: {
+          "Total records": finalFilteredTransactions.length,
+          "Completed value": formatKes(completedTotal),
+          "Pending value": formatKes(pendingTotal),
+          "Failed transactions": `${failedTransactions.length} (${formatKes(failedTotal)})`,
+        },
+      });
+      return;
+    }
+
     const headers = ["Date", "Member ID", "First Name", "Last Name", "Phone Number", "Amount (KES)", "Category", "M-Pesa Receipt", "Status"];
     const rows = finalFilteredTransactions.map(t => [
       new Date(t.createdAt).toLocaleDateString().replace(/,/g, ""),
@@ -296,7 +367,11 @@ function AdminTransactions() {
   };
 
   const handlePrint = () => {
-    window.print();
+    if (finalFilteredTransactions.length === 0) {
+      alert("No transaction data available for the PDF report.");
+      return;
+    }
+    downloadPdfReport(buildTransactionDocument());
   };
 
   return (
@@ -307,6 +382,13 @@ function AdminTransactions() {
         <button className="back-btn" onClick={() => navigate("/admin-dashboard")} style={styles.backBtn}>← Back to Dashboard</button>
       </header>
       <main style={styles.main}>
+        {error && (
+          <div role="alert" style={{ marginBottom: "20px", padding: "14px 16px", borderRadius: "12px", background: "rgba(239,68,68,0.12)", border: "1px solid rgba(248,113,113,0.25)", color: "#fecaca", display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+            <span>{error}</span>
+            <button type="button" onClick={fetchTransactions} style={{ ...styles.backBtn, padding: "7px 13px" }}>Retry</button>
+          </div>
+        )}
+
         {/* Print Header */}
         <div className="print-only" style={{ display: "none", textAlign: "center", marginBottom: "40px" }}>
           <h1 style={{ color: "#0369a1", margin: "0 0 5px" }}>Outreach Hope Church</h1>
@@ -325,6 +407,10 @@ function AdminTransactions() {
           <div style={styles.summaryCard("#f59e0b")} className="summary-card">
             <span style={styles.summaryNumber("#d97706")}>KES {pendingTotal.toLocaleString()}</span>
             <span style={styles.summaryLabel}>{selectedCategory} Pending ({displayPeriod})</span>
+          </div>
+          <div style={styles.summaryCard("#ef4444")} className="summary-card">
+            <span style={styles.summaryNumber("#f87171")}>{failedTransactions.length}</span>
+            <span style={styles.summaryLabel}>Failed · {formatKes(failedTotal)} requiring review</span>
           </div>
           <div style={styles.summaryCard("#0ea5e9")} className="summary-card">
             <span style={styles.summaryNumber("#0369a1")}>{finalFilteredTransactions.length}</span>
@@ -437,6 +523,29 @@ function AdminTransactions() {
               </select>
             </div>
 
+            <div style={{ position: "relative" }}>
+              <select
+                aria-label="Filter transactions by status"
+                value={selectedStatus}
+                onChange={(event) => setSelectedStatus(event.target.value)}
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  border: "1.5px solid rgba(255,255,255,0.1)",
+                  background: "rgba(30, 41, 59, 0.8)",
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  color: "#38bdf8",
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              >
+                {["All", "Completed", "Pending", "Failed"].map((status) => (
+                  <option key={status} value={status}>{status} status</option>
+                ))}
+              </select>
+            </div>
+
             {selectedPeriod === "Specific Date" && (
               <input
                 type="date"
@@ -518,7 +627,7 @@ function AdminTransactions() {
               onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
               onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
             >
-              🖨️ Print PDF
+              PDF Report
             </button>
           </div>
         </div>
@@ -526,18 +635,22 @@ function AdminTransactions() {
         {/* Category Tabs */}
         <div style={styles.tabContainer} className="no-print">
           {categories.map((cat) => (
-            <div
+            <button
+              type="button"
               key={cat}
               style={styles.tab(selectedCategory === cat)}
               onClick={() => setSelectedCategory(cat)}
+              aria-pressed={selectedCategory === cat}
             >
               {cat}
-            </div>
+            </button>
           ))}
         </div>
 
         <div style={styles.tableContainer} className="table-container">
-          {finalFilteredTransactions.length === 0 ? (<div style={styles.emptyState}>No {selectedCategory !== "All" ? selectedCategory.toLowerCase() : ""} transactions recorded yet.</div>) : (
+          {loading ? (
+            <div style={styles.emptyState}>Loading transaction records…</div>
+          ) : finalFilteredTransactions.length === 0 ? (<div style={styles.emptyState}>No transactions match the current filters.</div>) : (
             <table style={styles.table}>
               <thead>
                 <tr>

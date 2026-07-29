@@ -1,11 +1,16 @@
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
 import { API_URL as API } from "../apiConfig";
+import { downloadCsvReport, downloadPdfReport, downloadWordReport, formatReportDate } from "../adminReports";
 
-const formatUploadDate = (value) => value
-  ? new Date(value).toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" })
-  : "Date unavailable";
+const formatUploadDate = (value) => {
+  if (!value) return "Date unavailable";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "Date unavailable"
+    : date.toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" });
+};
 
 // ─── Helper: always read token fresh from localStorage ───────────────────────
 function getAdminToken() {
@@ -15,6 +20,7 @@ function getAdminToken() {
 export default function AdminGallery() {
   const [items, setItems]       = useState([]);
   const [loading, setLoading]   = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [uploading, setUploading] = useState(false);
 
   // Upload form state
@@ -35,29 +41,70 @@ export default function AdminGallery() {
 
   // Toast
   const [toast, setToast] = useState(null);
+  const toastTimerRef = useRef(null);
 
   // ── Toast helper ────────────────────────────────────────────────────────────
-  function showToast(msg, type = "success") {
+  const showToast = useCallback((msg, type = "success") => {
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
     setToast({ msg, type });
-    setTimeout(() => setToast(null), 4000);
-  }
+    toastTimerRef.current = window.setTimeout(() => setToast(null), 4000);
+  }, []);
 
   // ── Fetch all folders from server ───────────────────────────────────────────
-  async function fetchGallery() {
+  const fetchGallery = useCallback(async () => {
     setLoading(true);
+    setLoadError("");
     try {
       const res = await axios.get(`${API}/api/gallery`);
-      setItems(res.data);
-    } catch {
-      showToast("Failed to load gallery.", "error");
+      setItems(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      const message = err.response?.data?.message || "The gallery inventory could not be loaded.";
+      setLoadError(message);
+      showToast(message, "error");
     } finally {
       setLoading(false);
     }
-  }
+  }, [showToast]);
 
   useEffect(() => {
     fetchGallery();
+  }, [fetchGallery]);
+
+  useEffect(() => () => {
+    previews.forEach((preview) => URL.revokeObjectURL(preview.url));
+  }, [previews]);
+
+  useEffect(() => () => {
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
   }, []);
+
+  const inventory = useMemo(() => {
+    const folders = items.map((folder) => {
+      const folderFiles = Array.isArray(folder.files) ? folder.files : [];
+      const images = folderFiles.filter((file) => file.type === "image").length;
+      const videos = folderFiles.filter((file) => file.type === "video").length;
+      return {
+        ...folder,
+        totalFiles: folderFiles.length,
+        images,
+        videos,
+      };
+    });
+
+    return folders.reduce((summary, folder) => ({
+      folders: summary.folders,
+      totalFolders: summary.totalFolders + 1,
+      totalFiles: summary.totalFiles + folder.totalFiles,
+      images: summary.images + folder.images,
+      videos: summary.videos + folder.videos,
+    }), {
+      folders,
+      totalFolders: 0,
+      totalFiles: 0,
+      images: 0,
+      videos: 0,
+    });
+  }, [items]);
 
   // ── File change (individual files) ──────────────────────────────────────────
   function handleFileChange(e) {
@@ -180,6 +227,89 @@ export default function AdminGallery() {
     }
   }
 
+  function downloadInventoryCsv() {
+    if (inventory.totalFolders === 0) {
+      showToast("There is no gallery inventory available to report.", "error");
+      return;
+    }
+
+    downloadCsvReport({
+      title: "Gallery and Media Inventory",
+      filters: {
+        Scope: "All gallery folders",
+      },
+      headers: [
+        "Folder",
+        "Description",
+        "Total Files",
+        "Images",
+        "Videos",
+        "Created",
+        "Uploaded",
+        "Inventory ID",
+      ],
+      rows: inventory.folders.map((folder) => [
+        folder.title || "Untitled folder",
+        folder.description || "",
+        folder.totalFiles,
+        folder.images,
+        folder.videos,
+        formatReportDate(folder.createdAt || folder.uploadedAt, true),
+        formatReportDate(folder.uploadedAt || folder.createdAt, true),
+        folder._id || "",
+      ]),
+      summary: {
+        "Total folders": inventory.totalFolders,
+        "Total media files": inventory.totalFiles,
+        Images: inventory.images,
+        Videos: inventory.videos,
+      },
+    });
+  }
+
+  function getInventoryDocument() {
+    return {
+      title: "Gallery and Media Inventory",
+      subtitle: "Folder-level register of church photographs, videos, and media holdings",
+      filters: {
+        Scope: "All gallery folders",
+      },
+      summary: {
+        "Total folders": inventory.totalFolders,
+        "Total media files": inventory.totalFiles,
+        Images: inventory.images,
+        Videos: inventory.videos,
+      },
+      columns: [
+        { label: "Folder", value: (folder) => folder.title || "Untitled folder" },
+        { label: "Description", value: (folder) => folder.description || "—" },
+        { label: "Files", value: "totalFiles" },
+        { label: "Images", value: "images" },
+        { label: "Videos", value: "videos" },
+        { label: "Created", value: (folder) => formatReportDate(folder.createdAt || folder.uploadedAt, true) },
+        { label: "Uploaded", value: (folder) => formatReportDate(folder.uploadedAt || folder.createdAt, true) },
+        { label: "Inventory ID", value: (folder) => folder._id || "—" },
+      ],
+      rows: inventory.folders,
+    };
+  }
+
+  function downloadInventoryWord() {
+    if (inventory.totalFolders === 0) {
+      showToast("There is no gallery inventory available to report.", "error");
+      return;
+    }
+    downloadWordReport(getInventoryDocument());
+  }
+
+  function downloadInventoryPdf() {
+    if (inventory.totalFolders === 0) {
+      showToast("There is no gallery inventory available to report.", "error");
+      return;
+    }
+    downloadPdfReport(getInventoryDocument());
+  }
+
   // ── Filtered files in open folder ────────────────────────────────────────────
   const visibleFiles = openFolder
     ? (openFolder.files || []).filter(f => filter === "all" || f.type === filter)
@@ -224,14 +354,20 @@ export default function AdminGallery() {
           </div>
           <div className="ag-header-stats">
             <div className="ag-stat">
-              <span className="ag-stat-num">{items.length}</span>
+              <span className="ag-stat-num">{inventory.totalFolders}</span>
               <span className="ag-stat-label">Folders</span>
             </div>
             <div className="ag-stat">
-              <span className="ag-stat-num">
-                {items.reduce((acc, f) => acc + (f.files?.length || 0), 0)}
-              </span>
+              <span className="ag-stat-num">{inventory.totalFiles}</span>
               <span className="ag-stat-label">Total Files</span>
+            </div>
+            <div className="ag-stat">
+              <span className="ag-stat-num">{inventory.images}</span>
+              <span className="ag-stat-label">Images</span>
+            </div>
+            <div className="ag-stat">
+              <span className="ag-stat-num">{inventory.videos}</span>
+              <span className="ag-stat-label">Videos</span>
             </div>
           </div>
         </header>
@@ -305,6 +441,32 @@ export default function AdminGallery() {
             <>
               <div className="ag-gallery-header">
                 <h2 className="ag-section-title">📁 Media Folders</h2>
+                <div className="ag-report-actions">
+                  <button
+                    type="button"
+                    className="ag-report-btn"
+                    onClick={downloadInventoryPdf}
+                    disabled={loading || Boolean(loadError) || inventory.totalFolders === 0}
+                  >
+                    Export PDF
+                  </button>
+                  <button
+                    type="button"
+                    className="ag-report-btn csv"
+                    onClick={downloadInventoryCsv}
+                    disabled={loading || Boolean(loadError) || inventory.totalFolders === 0}
+                  >
+                    Export CSV
+                  </button>
+                  <button
+                    type="button"
+                    className="ag-report-btn word"
+                    onClick={downloadInventoryWord}
+                    disabled={loading || Boolean(loadError) || inventory.totalFolders === 0}
+                  >
+                    Export Word
+                  </button>
+                </div>
               </div>
 
               {loading ? (
@@ -312,10 +474,17 @@ export default function AdminGallery() {
                   <div className="ag-spinner" />
                   <p>Loading folders…</p>
                 </div>
+              ) : loadError ? (
+                <div className="ag-load-error" role="alert">
+                  <span>Unable to load media inventory</span>
+                  <p>{loadError}</p>
+                  <button type="button" onClick={fetchGallery}>Try again</button>
+                </div>
               ) : items.length === 0 ? (
                 <div className="ag-empty">
                   <span>📭</span>
-                  <p>No folders found. Upload one above!</p>
+                  <p>No media folders have been uploaded yet.</p>
+                  <small>Use the upload form above to create the first gallery folder.</small>
                 </div>
               ) : (
                 <div className="ag-folders-grid">
@@ -432,6 +601,77 @@ export default function AdminGallery() {
 
       {/* ── Scoped styles ── */}
       <style>{`
+        .ag-report-actions {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+        .ag-report-btn {
+          border: 1px solid transparent;
+          border-radius: 8px;
+          padding: 9px 13px;
+          color: #fff;
+          font: inherit;
+          font-size: 0.78rem;
+          font-weight: 800;
+          cursor: pointer;
+          transition: transform 0.2s, opacity 0.2s, border-color 0.2s;
+        }
+        .ag-report-btn.csv {
+          background: rgba(5, 150, 105, 0.18);
+          border-color: rgba(52, 211, 153, 0.35);
+          color: #a7f3d0;
+        }
+        .ag-report-btn.word {
+          background: rgba(2, 132, 199, 0.18);
+          border-color: rgba(56, 189, 248, 0.35);
+          color: #bae6fd;
+        }
+        .ag-report-btn:hover:not(:disabled) {
+          transform: translateY(-1px);
+          border-color: currentColor;
+        }
+        .ag-report-btn:disabled {
+          opacity: 0.45;
+          cursor: not-allowed;
+        }
+        .ag-load-error {
+          display: flex;
+          min-height: 180px;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          padding: 24px;
+          border: 1px solid rgba(248, 113, 113, 0.28);
+          border-radius: 12px;
+          background: rgba(127, 29, 29, 0.12);
+          color: #fecaca;
+          text-align: center;
+        }
+        .ag-load-error > span {
+          font-weight: 800;
+        }
+        .ag-load-error p {
+          margin: 0;
+          color: #fca5a5;
+          font-size: 0.86rem;
+        }
+        .ag-load-error button {
+          margin-top: 4px;
+          border: 1px solid rgba(248, 113, 113, 0.35);
+          border-radius: 8px;
+          padding: 8px 13px;
+          background: rgba(239, 68, 68, 0.14);
+          color: #fee2e2;
+          font: inherit;
+          font-size: 0.8rem;
+          font-weight: 800;
+          cursor: pointer;
+        }
+        .ag-empty small {
+          color: #6b7280;
+        }
         .ag-folders-grid {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -549,6 +789,7 @@ export default function AdminGallery() {
         }
         @media (max-width: 640px) {
           .ag-drop-options { grid-template-columns: 1fr; }
+          .ag-report-actions, .ag-report-btn { width: 100%; }
         }
         .folder-zone {
           border-color: rgba(59,130,246,0.4);

@@ -118,8 +118,8 @@ function MemberSignup() {
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.glassCard}>
+    <div className="member-signup-page" style={styles.container}>
+      <div className="member-signup-card" style={styles.glassCard}>
         <img src="/logo.png" alt="Outreach Hope Church" style={{
           width: "72px",
           height: "72px",
@@ -137,7 +137,7 @@ function MemberSignup() {
         {error && <div style={styles.errorBanner}>{error}</div>}
 
         <form onSubmit={handleSignup} style={styles.form}>
-          <div style={styles.row}>
+          <div className="member-signup-row" style={styles.row}>
             <div style={styles.inputGroup}>
               <label style={styles.label}>First Name</label>
               <input

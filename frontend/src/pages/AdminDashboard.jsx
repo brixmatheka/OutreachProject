@@ -372,9 +372,6 @@ const GlobalStyle = () => (
 );
 
 function AdminDashboard() {
-  const [title, setTitle] = useState("");
-  const [date, setDate] = useState("");
-  const [description, setDescription] = useState("");
   const [events, setEvents] = useState([]);
   const [prayerRequests, setPrayerRequests] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -382,11 +379,10 @@ function AdminDashboard() {
   const [members, setMembers] = useState([]);
   const [baptismRequests, setBaptismRequests] = useState([]);
   const [sermonAnalytics, setSermonAnalytics] = useState(null);
-
-  // Project Form State
-  const [projTitle, setProjTitle] = useState("");
-  const [projDesc, setProjDesc] = useState("");
-  const [projStatus, setProjStatus] = useState("Ongoing");
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [dashboardError, setDashboardError] = useState("");
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const adminAuth = getAdminAuth();
   const token = adminAuth.token;
@@ -394,194 +390,64 @@ function AdminDashboard() {
   const canAccess = (section) => canAccessAdminSection(section);
   const hiddenIfNoAccess = (section) => (canAccess(section) ? {} : { display: "none" });
 
-  const fetchEvents = async () => {
-    const res = await axios.get("/events");
-    setEvents(res.data);
-  };
-
-  const fetchPrayerRequests = async () => {
-    try {
-      const res = await axios.get("/prayer-requests", {
-        headers: { Authorization: token },
-      });
-      setPrayerRequests(res.data);
-    } catch {
-      setPrayerRequests([]);
-    }
-  };
-
-  const fetchTransactions = async () => {
-    try {
-      const res = await axios.get("/api/admin/transactions", {
-        headers: { Authorization: token },
-      });
-      setTransactions(res.data);
-    } catch {
-      setTransactions([]);
-    }
-  };
-
-  const fetchProjects = async () => {
-    try {
-      const res = await axios.get("/projects");
-      setProjects(res.data);
-    } catch {
-      setProjects([]);
-    }
-  };
-
-  const fetchMembers = async () => {
-    try {
-      const res = await axios.get("/auth/members", {
-        headers: { Authorization: token },
-      });
-      setMembers(res.data);
-    } catch {
-      setMembers([]);
-    }
-  };
-
-  const fetchBaptismRequests = async () => {
-    try {
-      const res = await axios.get("/api/admin/baptism-requests", {
-        headers: { Authorization: token },
-      });
-      setBaptismRequests(res.data);
-    } catch {
-      setBaptismRequests([]);
-    }
-  };
-
-  const fetchSermonAnalytics = async () => {
-    try {
-      const res = await axios.get("/api/admin/sermons/analytics", {
-        headers: { Authorization: token },
-      });
-      setSermonAnalytics(res.data);
-    } catch {
-      setSermonAnalytics(null);
-    }
-  };
-
   useEffect(() => {
-    if (token) {
-      if (canAccessAdminSection("events")) fetchEvents();
-      if (canAccessAdminSection("prayerRequests")) fetchPrayerRequests();
-      if (canAccessAdminSection("transactions")) fetchTransactions();
-      if (canAccessAdminSection("projects")) fetchProjects();
-      if (canAccessAdminSection("members")) fetchMembers();
-      if (canAccessAdminSection("baptism")) fetchBaptismRequests();
-      if (canAccessAdminSection("sermons")) fetchSermonAnalytics();
-    }
-  }, [token, adminAuth.role]);
+    if (!token) return undefined;
 
-  const createEvent = async () => {
-    try {
-      await axios.post(
-        "/events",
-        { title, date, description },
-        { headers: { Authorization: token } }
-      );
-      setTitle("");
-      setDate("");
-      setDescription("");
-      fetchEvents();
-    } catch (err) {
-      alert("Error creating event");
-    }
-  };
+    let cancelled = false;
+    const requests = [
+      canAccessAdminSection("events") && { key: "events", request: axios.get("/events") },
+      canAccessAdminSection("prayerRequests") && { key: "prayers", request: axios.get("/prayer-requests", { headers: { Authorization: token } }) },
+      canAccessAdminSection("transactions") && { key: "transactions", request: axios.get("/api/admin/transactions", { headers: { Authorization: token } }) },
+      canAccessAdminSection("projects") && { key: "projects", request: axios.get("/projects") },
+      canAccessAdminSection("members") && { key: "members", request: axios.get("/auth/members", { headers: { Authorization: token } }) },
+      canAccessAdminSection("baptism") && { key: "baptism", request: axios.get("/api/admin/baptism-requests", { headers: { Authorization: token } }) },
+      canAccessAdminSection("sermons") && { key: "sermons", request: axios.get("/api/admin/sermons/analytics", { headers: { Authorization: token } }) },
+    ].filter(Boolean);
 
-  const deleteEvent = async (id) => {
-    await axios.delete(`/events/${id}`, {
-      headers: { Authorization: token },
+    Promise.allSettled(requests.map((item) => item.request)).then((results) => {
+      if (cancelled) return;
+      let failedSections = 0;
+
+      results.forEach((result, index) => {
+        if (result.status !== "fulfilled") {
+          failedSections += 1;
+          return;
+        }
+        const data = result.value.data;
+        switch (requests[index].key) {
+          case "events": setEvents(data); break;
+          case "prayers": setPrayerRequests(data); break;
+          case "transactions": setTransactions(data); break;
+          case "projects": setProjects(data); break;
+          case "members": setMembers(data); break;
+          case "baptism": setBaptismRequests(data); break;
+          case "sermons": setSermonAnalytics(data); break;
+          default: break;
+        }
+      });
+
+      setDashboardError(failedSections
+        ? `${failedSections} dashboard section${failedSections === 1 ? "" : "s"} could not be refreshed. Existing values were preserved.`
+        : "");
+      setLastUpdated(new Date());
+      setDashboardLoading(false);
     });
-    fetchEvents();
-  };
 
-  const deletePrayerRequest = async (id) => {
-    await axios.delete(`/prayer-requests/${id}`, {
-      headers: { Authorization: token },
-    });
-    fetchPrayerRequests();
-  };
+    return () => {
+      cancelled = true;
+    };
+  }, [token, adminAuth.role, refreshKey]);
 
-  const toggleReadStatus = async (id, currentStatus) => {
-    try {
-      await axios.patch(`/prayer-requests/${id}/read`,
-        { isRead: !currentStatus },
-        { headers: { Authorization: token } }
-      );
-      fetchPrayerRequests();
-    } catch {
-      alert("Error updating prayer request status");
-    }
-  };
-
-  const createProject = async () => {
-    try {
-      await axios.post(
-        "/projects",
-        { title: projTitle, description: projDesc, status: projStatus },
-        { headers: { Authorization: token } }
-      );
-      setProjTitle("");
-      setProjDesc("");
-      fetchProjects();
-    } catch (err) {
-      alert("Error creating project");
-    }
-  };
-
-  const deleteProject = async (id) => {
-    await axios.delete(`/projects/${id}`, {
-      headers: { Authorization: token },
-    });
-    fetchProjects();
+  const refreshDashboard = () => {
+    setDashboardLoading(true);
+    setDashboardError("");
+    setRefreshKey((value) => value + 1);
   };
 
   const handleLogout = () => {
     axios.post("/admin/logout").catch(() => {});
     clearAdminAuth();
     window.location.href = "/admin-login";
-  };
-
-  const downloadReport = () => {
-    if (transactions.length === 0) {
-      alert("No transaction data available for the report.");
-      return;
-    }
-
-    // Define CSV headers
-    const headers = ["Date", "Member ID", "First Name", "Last Name", "Phone Number", "Amount (KES)", "Category", "M-Pesa Receipt", "Status"];
-
-    // Map transactions to CSV rows
-    const rows = transactions.map(t => [
-      new Date(t.createdAt).toLocaleString(),
-      t.memberId || "0000",
-      t.firstName || "Guest",
-      t.lastName || "",
-      t.phone,
-      t.amount,
-      t.category,
-      t.mpesaReceiptNumber || "N/A",
-      t.status
-    ]);
-
-    // Construct CSV content
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.join(","))
-    ].join("\n");
-
-    // Create a blob and download link
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.body.appendChild(document.createElement("a"));
-    link.href = url;
-    link.download = `Outreach_Transactions_Report_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   };
 
   if (!token) {
@@ -611,18 +477,32 @@ function AdminDashboard() {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <button
-            className="logout-btn"
-            onClick={handleLogout}
-            style={styles.logoutBtn}
-          >
-            ⬡ Logout
-          </button>
-
+          <details style={{ position: "relative" }}>
+            <summary style={{ ...styles.logoutBtn, listStyle: "none", cursor: "pointer", userSelect: "none" }}>
+              ⚙ Settings
+            </summary>
+            <div style={{ position: "absolute", top: "calc(100% + 10px)", right: 0, width: "220px", padding: "12px", borderRadius: "12px", background: "#0f172a", border: "1px solid rgba(148,163,184,0.2)", boxShadow: "0 16px 40px rgba(0,0,0,0.4)", zIndex: 200 }}>
+              <p style={{ margin: "0 0 10px", color: "#94a3b8", fontSize: "0.75rem" }}>Signed in as <strong style={{ color: "#e2e8f0" }}>{roleLabel}</strong></p>
+              <button type="button" onClick={refreshDashboard} disabled={dashboardLoading} style={{ ...styles.logoutBtn, width: "100%", marginBottom: "8px" }}>
+                {dashboardLoading ? "Refreshing…" : "Refresh dashboard"}
+              </button>
+              <button type="button" className="logout-btn" onClick={handleLogout} style={{ ...styles.logoutBtn, width: "100%", color: "#fecaca", borderColor: "rgba(248,113,113,0.25)" }}>
+                ⬡ Log out
+              </button>
+            </div>
+          </details>
         </div>
       </header>
 
       <main style={styles.main}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "18px", color: "#94a3b8", fontSize: "0.78rem" }}>
+          <span>{dashboardLoading ? "Refreshing organizational data…" : lastUpdated ? `Last refreshed ${lastUpdated.toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" })}` : "Dashboard ready"}</span>
+          {dashboardError && (
+            <span role="alert" style={{ color: "#fca5a5" }}>
+              {dashboardError} <button type="button" onClick={refreshDashboard} style={{ border: 0, background: "transparent", color: "#7dd3fc", cursor: "pointer", fontWeight: 800 }}>Retry</button>
+            </span>
+          )}
+        </div>
 
         {/*Stat Cards (Overview) */}
         <div style={styles.statsRow}>
@@ -665,6 +545,20 @@ function AdminDashboard() {
         {/* Navigation Cards */}
         <h3 style={styles.sectionHeading}>Manage Sections</h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "20px", marginBottom: "32px" }}>
+
+          {/* Organization Reports Card */}
+          <button type="button" className="stat-card" onClick={() => window.location.href = "/admin/reports"} style={{
+            ...styles.glassCard, cursor: "pointer", marginBottom: 0, display: "flex", flexDirection: "column", gap: "14px",
+            borderLeft: "5px solid #22d3ee", transition: "transform 0.2s, box-shadow 0.2s", textAlign: "left",
+            ...hiddenIfNoAccess("reports"),
+          }}>
+            <div style={{ fontSize: "2.2rem" }} aria-hidden="true">▦</div>
+            <h4 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#22d3ee" }}>Organization Reports</h4>
+            <p style={{ margin: 0, fontSize: "0.85rem", color: "#94a3b8", lineHeight: 1.5 }}>
+              Review organization-wide performance, operational workload, and audited exports.
+            </p>
+            <span style={{ fontSize: "0.8rem", color: "#22d3ee", fontWeight: 600 }}>Open executive reporting →</span>
+          </button>
 
           {/* Events Card */}
           <div className="stat-card" onClick={() => window.location.href = "/admin/events"} style={{

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import axios from "axios";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 function MemberLogin() {
   const [credentials, setCredentials] = useState({ email: "", password: "" });
@@ -8,8 +8,6 @@ function MemberLogin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [focusedField, setFocusedField] = useState(null);
-  const navigate = useNavigate();
-
   const handleChange = (e) => {
     setCredentials({ ...credentials, [e.target.name]: e.target.value });
     if (error) setError("");
@@ -52,7 +50,7 @@ function MemberLogin() {
   });
 
   return (
-    <div style={{
+    <div className="member-login-page" style={{
       minHeight: "100vh",
       background: "linear-gradient(160deg, #1e3a5f 0%, #1e40af 25%, #0f2d4a 55%, #0c1a2e 100%)",
       display: "flex",

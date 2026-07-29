@@ -2,9 +2,10 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { SITE_URL } from "../apiConfig";
+import { downloadCsvReport, downloadPdfReport, downloadWordReport, formatReportDate, maskSensitiveId } from "../adminReports";
 
 const formatUploadDate = (value) => value
-  ? new Date(value).toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" })
+  ? new Date(value).toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short", timeZone: "Africa/Nairobi" })
   : "Date unavailable";
 
 const styles = {
@@ -163,21 +164,21 @@ const GlobalStyle = () => (
   `}</style>
 );
 
-const escapeHtml = (value) =>
-  String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-
 function AdminEvents() {
-const [title, setTitle] = useState("");
+  const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [description, setDescription] = useState("");
+  const [location, setLocation] = useState("");
+  const [time, setTime] = useState("");
   const [bannerFile, setBannerFile] = useState(null);
   const [bannerPreview, setBannerPreview] = useState("");
   const [events, setEvents] = useState([]);
+  const [editingId, setEditingId] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState("");
+  const [lastCreatedEvent, setLastCreatedEvent] = useState(null);
 
   // Report Filters
   const [filterType, setFilterType] = useState("All");
@@ -187,6 +188,22 @@ const [title, setTitle] = useState("");
   const [showAttendeesFor, setShowAttendeesFor] = useState(null);
 
   const navigate = useNavigate();
+
+  const getAttendeeCount = (event) =>
+    Number(event.attendeesCount ?? event.attendees?.length ?? 0) || 0;
+
+  const getEventStatus = (event, today) => {
+    const eventDate = new Date(event.date);
+    eventDate.setHours(0, 0, 0, 0);
+    return eventDate >= today ? "Upcoming" : "Past";
+  };
+
+  const getReportFilters = () => ({
+    Status: filterType === "All" ? "All events" : filterType,
+    Search: searchQuery.trim() || "None",
+    "Date from": startDate ? formatReportDate(startDate) : "Any",
+    "Date to": endDate ? formatReportDate(endDate) : "Any",
+  });
 
   const getFilteredEvents = () => {
     const today = new Date();
@@ -223,186 +240,181 @@ const [title, setTitle] = useState("");
     });
   };
 
-  const downloadCSV = () => {
+  const downloadEventsCSV = () => {
     const filtered = getFilteredEvents();
     if (filtered.length === 0) {
       alert("No events match the current filters.");
       return;
     }
 
-    const headers = ["Title", "Date", "Status", "Description"];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const upcomingCount = filtered.filter(
+      (event) => getEventStatus(event, today) === "Upcoming"
+    ).length;
 
-    const rows = filtered.map(r => {
-      const evDate = new Date(r.date);
-      evDate.setHours(0, 0, 0, 0);
-      const status = evDate >= today ? "Upcoming" : "Past";
-      const titleClean = `"${(r.title || "").replace(/"/g, '""')}"`;
-      const descClean = `"${(r.description || "").replace(/"/g, '""')}"`;
-      return [
-        titleClean,
-        new Date(r.date).toLocaleDateString(),
-        status,
-        descClean
-      ];
+    downloadCsvReport({
+      title: "Events and Programs Register",
+      filters: getReportFilters(),
+      headers: [
+        "Event Code",
+        "Title",
+        "Event Date",
+        "Status",
+        "Location",
+        "Time",
+        "Attendees",
+        "Uploaded",
+        "Description",
+      ],
+      rows: filtered.map((event) => [
+        event.eventCode || "",
+        event.title || "",
+        formatReportDate(event.date),
+        getEventStatus(event, today),
+        event.location || "",
+        event.time || "",
+        getAttendeeCount(event),
+        formatReportDate(event.createdAt, true),
+        event.description || "",
+      ]),
+      summary: {
+        "Total events": filtered.length,
+        Upcoming: upcomingCount,
+        Past: filtered.length - upcomingCount,
+        "Total registrations": filtered.reduce(
+          (sum, event) => sum + getAttendeeCount(event),
+          0
+        ),
+      },
     });
-
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.join(","))
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Outreach_Events_Report_${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   };
 
-  const downloadReport = () => {
+  const buildEventsDocument = () => {
+    const filtered = getFilteredEvents();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const upcomingCount = filtered.filter(
+      (event) => getEventStatus(event, today) === "Upcoming"
+    ).length;
+    return {
+      title: "Events and Programs Report",
+      subtitle: "Program schedule, venue, attendance, and publication register",
+      filters: getReportFilters(),
+      summary: {
+        "Total events": filtered.length,
+        Upcoming: upcomingCount,
+        Past: filtered.length - upcomingCount,
+        Registrations: filtered.reduce(
+          (sum, event) => sum + getAttendeeCount(event),
+          0
+        ),
+      },
+      columns: [
+        { label: "Code", value: (event) => event.eventCode || "—" },
+        { label: "Event", value: (event) => event.title || "—" },
+        { label: "Date", value: (event) => formatReportDate(event.date) },
+        { label: "Status", value: (event) => getEventStatus(event, today) },
+        { label: "Location", value: (event) => event.location || "—" },
+        { label: "Time", value: (event) => event.time || "—" },
+        { label: "Attendees", value: getAttendeeCount },
+        { label: "Uploaded", value: (event) => formatReportDate(event.createdAt, true) },
+        { label: "Description", value: (event) => event.description || "—" },
+      ],
+      rows: filtered,
+    };
+  };
+
+  const downloadEventsWord = () => {
     const filtered = getFilteredEvents();
     if (filtered.length === 0) {
       alert("No events match the current filters.");
       return;
     }
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const html = `
-      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-      <head><meta charset='utf-8'><title>Outreach Hope Church — Events Report</title>
-      <style>
-        table { border-collapse: collapse; width: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        th, td { border: 1px solid #000; padding: 10px; text-align: left; font-size: 11pt; }
-        th { background-color: #f2f2f2; font-weight: bold; }
-        h1 { text-align: center; color: #0369a1; font-size: 18pt; margin-bottom: 5pt; }
-        h2 { text-align: center; color: #475569; font-size: 14pt; margin-top: 0; }
-        p { text-align: center; color: #64748b; font-size: 10pt; }
-      </style>
-      </head>
-      <body>
-        <h1>Outreach Hope Church</h1>
-        <h2>Events & Programs Report</h2>
-        <p>Filters applied: Type: ${escapeHtml(filterType)} | Search: ${escapeHtml(searchQuery || "None")} | Date Range: ${escapeHtml(startDate || "Any")} to ${escapeHtml(endDate || "Any")}</p>
-        <p>Generated on: ${new Date().toLocaleString()}</p>
-        <br/>
-        <table>
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th>Date</th>
-              <th>Status</th>
-              <th>Description</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${filtered.map(r => {
-      const evDate = new Date(r.date);
-      evDate.setHours(0, 0, 0, 0);
-      const status = evDate >= today ? "Upcoming" : "Past";
-      return `
-                <tr>
-                  <td><b>${escapeHtml(r.title)}</b></td>
-                  <td>${new Date(r.date).toLocaleDateString()}</td>
-                  <td>${escapeHtml(status)}</td>
-                  <td>${escapeHtml(r.description)}</td>
-                </tr>
-              `;
-    }).join('')}
-          </tbody>
-        </table>
-      </body>
-      </html>
-    `;
-
-    const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Outreach_Events_Report_${new Date().toISOString().split('T')[0]}.doc`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    downloadWordReport(buildEventsDocument());
   };
 
   const downloadAttendeesReport = (event) => {
-    if (!event.attendees || event.attendees.length === 0) {
+    const attendees = event.attendees || [];
+    if (attendees.length === 0) {
       alert("No attendees to report for this event.");
       return;
     }
 
-    const html = `
-      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-      <head><meta charset='utf-8'><title>Outreach Hope Church — Attendee Report</title>
-      <style>
-        table { border-collapse: collapse; width: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        th, td { border: 1px solid #000; padding: 10px; text-align: left; font-size: 11pt; }
-        th { background-color: #f2f2f2; font-weight: bold; }
-        h1 { text-align: center; color: #0369a1; font-size: 18pt; margin-bottom: 5pt; }
-        h2 { text-align: center; color: #475569; font-size: 14pt; margin-top: 0; }
-        p { text-align: center; color: #64748b; font-size: 10pt; }
-      </style>
-      </head>
-      <body>
-        <h1>Outreach Hope Church</h1>
-        <h2>Attendee Report: ${escapeHtml(event.title)}</h2>
-        <p>Event Code: ${escapeHtml(event.eventCode || "N/A")} | Date: ${new Date(event.date).toLocaleDateString()}</p>
-        <p>Generated on: ${new Date().toLocaleString()}</p>
-        <br/>
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Member ID</th>
-              <th>National ID</th>
-              <th>Phone</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${event.attendees.map(a => `
-              <tr>
-                <td>${escapeHtml(a.name)}</td>
-                <td>${escapeHtml(a.memberId || "N/A")}</td>
-                <td>${escapeHtml(a.idNo || a.idNumber || "N/A")}</td>
-                <td>${escapeHtml(a.phone)}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </body>
-      </html>
-    `;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Outreach_Event_Attendees_${event.eventCode || event._id}.doc`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    downloadWordReport({
+      title: `Event Attendees - ${event.title || "Untitled Event"}`,
+      subtitle: "Registration and attendance contact register",
+      filters: {
+        "Event code": event.eventCode || "Not assigned",
+        "Event date": formatReportDate(event.date),
+        Status: getEventStatus(event, today),
+      },
+      summary: {
+        "Registered attendees": attendees.length,
+        Members: attendees.filter((attendee) => attendee.memberId).length,
+        Guests: attendees.filter((attendee) => !attendee.memberId).length,
+      },
+      columns: [
+        { label: "Name", value: (attendee) => attendee.name || "—" },
+        { label: "Member ID", value: (attendee) => attendee.memberId || "Guest" },
+        { label: "National ID (masked)", value: (attendee) => maskSensitiveId(attendee.idNo || attendee.idNumber) },
+        { label: "Phone", value: (attendee) => attendee.phone || "—" },
+      ],
+      rows: attendees,
+    });
   };
 
   const handlePrint = () => {
-    window.print();
+    if (getFilteredEvents().length === 0) {
+      alert("No events match the current filters.");
+      return;
+    }
+    downloadPdfReport(buildEventsDocument());
   };
 
   const fetchEvents = async () => {
-    const res = await axios.get("/api/admin/events");
-    setEvents(res.data);
+    setError("");
+    try {
+      const res = await axios.get("/api/admin/events");
+      setEvents(res.data);
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || "Events could not be refreshed.");
+    }
   };
 
   useEffect(() => {
-    fetchEvents().catch(() => navigate("/admin-login"));
-  }, []);
+    let active = true;
+
+    axios.get("/api/admin/events")
+      .then((res) => {
+        if (active) {
+          setEvents(res.data);
+          setError("");
+        }
+      })
+      .catch((requestError) => {
+        if (!active) return;
+        if ([401, 403].includes(requestError.response?.status)) {
+          navigate("/admin-login");
+        } else {
+          setError(requestError.response?.data?.message || "Events could not be loaded. Check the connection and retry.");
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [navigate]);
+
+  useEffect(() => () => {
+    if (bannerPreview.startsWith("blob:")) URL.revokeObjectURL(bannerPreview);
+  }, [bannerPreview]);
 
   const shareToWhatsApp = (eventData) => {
     const formattedDate = new Date(eventData.date).toLocaleDateString("en-US", {
@@ -415,7 +427,8 @@ const [title, setTitle] = useState("");
       ` NEW EVENT ANNOUNCEMENT \n\n` +
       `Topic: ${eventData.title.toUpperCase()}\n` +
       `Date: ${formattedDate}\n` +
-      `Location: OHC Sunshine Sanctuary\n\n` +
+      `Location: ${eventData.location || "OHC Sunshine Sanctuary"}\n` +
+      `${eventData.time ? `Time: ${eventData.time}\n` : ""}\n` +
       `About: \n${eventData.description}\n\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
       `View more details here:\n` +
@@ -428,6 +441,7 @@ const [title, setTitle] = useState("");
 
   const handleBannerChange = (e) => {
     const file = e.target.files[0];
+    if (bannerPreview.startsWith("blob:")) URL.revokeObjectURL(bannerPreview);
     if (file) {
       setBannerFile(file);
       setBannerPreview(URL.createObjectURL(file));
@@ -435,6 +449,32 @@ const [title, setTitle] = useState("");
       setBannerFile(null);
       setBannerPreview("");
     }
+  };
+
+  const resetEventForm = () => {
+    if (bannerPreview.startsWith("blob:")) URL.revokeObjectURL(bannerPreview);
+    setTitle("");
+    setDate("");
+    setDescription("");
+    setLocation("");
+    setTime("");
+    setBannerFile(null);
+    setBannerPreview("");
+    setEditingId("");
+  };
+
+  const editEvent = (event) => {
+    if (bannerPreview.startsWith("blob:")) URL.revokeObjectURL(bannerPreview);
+    setEditingId(event._id);
+    setTitle(event.title || "");
+    setDate(event.date ? new Date(event.date).toISOString().slice(0, 10) : "");
+    setDescription(event.description || "");
+    setLocation(event.location || "");
+    setTime(event.time || "");
+    setBannerFile(null);
+    setBannerPreview(event.banner || "");
+    setLastCreatedEvent(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const createEvent = async () => {
@@ -448,35 +488,51 @@ const [title, setTitle] = useState("");
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    if (selectedDate < today) {
+    if (!editingId && selectedDate < today) {
       alert("Cannot publish an event with a past date. Please select today or a future date.");
       return;
     }
 
+    setSaving(true);
+    setError("");
     try {
       const formData = new FormData();
       formData.append("title", title);
       formData.append("date", date);
       formData.append("description", description);
+      formData.append("location", location);
+      formData.append("time", time);
       if (bannerFile) {
         formData.append("banner", bannerFile);
       }
 
-      await axios.post("/events", formData);
-      const newEvent = { title, date, description };
-      setTitle(""); setDate(""); setDescription("");
-      setBannerFile(null);
-      setBannerPreview("");
-      fetchEvents();
-
-      shareToWhatsApp(newEvent);
-    } catch (err) { alert("Error creating event"); }
+      const response = editingId
+        ? await axios.patch(`/events/${editingId}`, formData)
+        : await axios.post("/events", formData);
+      const savedEvent = response.data?.event || { title, date, description, location, time };
+      if (!editingId) setLastCreatedEvent(savedEvent);
+      resetEventForm();
+      await fetchEvents();
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || `Event could not be ${editingId ? "updated" : "created"}.`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const deleteEvent = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this event?")) return;
-    await axios.delete(`/events/${id}`);
-    fetchEvents();
+    const event = events.find((item) => item._id === id);
+    if (!window.confirm(`Permanently delete "${event?.title || "this event"}" and its attendee register? This cannot be undone.`)) return;
+    setDeletingId(id);
+    setError("");
+    try {
+      await axios.delete(`/events/${id}`);
+      await fetchEvents();
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || "The event could not be deleted.");
+    } finally {
+      setDeletingId("");
+    }
   };
 
   return (
@@ -503,6 +559,20 @@ const [title, setTitle] = useState("");
       </header>
 
       <main style={styles.main}>
+        {error && (
+          <div role="alert" style={{ marginBottom: "18px", padding: "13px 15px", borderRadius: "12px", background: "rgba(239,68,68,0.12)", border: "1px solid rgba(248,113,113,0.24)", color: "#fecaca", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+            <span>{error}</span>
+            <button type="button" onClick={fetchEvents} style={{ ...styles.backBtn, padding: "7px 12px" }}>Retry</button>
+          </div>
+        )}
+
+        {lastCreatedEvent && (
+          <div role="status" className="no-print" style={{ marginBottom: "18px", padding: "13px 15px", borderRadius: "12px", background: "rgba(34,197,94,0.1)", border: "1px solid rgba(74,222,128,0.22)", color: "#bbf7d0", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+            <span><strong>{lastCreatedEvent.title}</strong> was published successfully.</span>
+            <button type="button" onClick={() => shareToWhatsApp(lastCreatedEvent)} style={styles.shareBtn}>Share to WhatsApp</button>
+          </div>
+        )}
+
         {/* Print Header */}
         <div className="print-only" style={{ display: "none", textAlign: "center", marginBottom: "40px" }}>
           <h1 style={{ color: "#0369a1", margin: "0 0 5px", fontFamily: "'Poppins', sans-serif" }}>Outreach Hope Church</h1>
@@ -512,7 +582,7 @@ const [title, setTitle] = useState("");
 
         {/* Create Event Form */}
         <div style={styles.glassCard} className="no-print">
-          <h3 style={styles.sectionHeading}>Post a New Event</h3>
+          <h3 style={styles.sectionHeading}>{editingId ? "Edit Event" : "Post a New Event"}</h3>
           <div style={styles.formGrid}>
             <input className="dash-input" placeholder="Event Title" value={title} onChange={(e) => setTitle(e.target.value)} style={styles.input} />
             <input
@@ -520,9 +590,13 @@ const [title, setTitle] = useState("");
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              min={new Date().toISOString().split("T")[0]}
+              min={editingId ? undefined : new Date().toISOString().split("T")[0]}
               style={styles.input}
             />
+          </div>
+          <div style={styles.formGrid}>
+            <input className="dash-input" placeholder="Location (for example, Main Sanctuary)" value={location} onChange={(event) => setLocation(event.target.value)} style={styles.input} />
+            <input className="dash-input" type="time" aria-label="Event time" value={time} onChange={(event) => setTime(event.target.value)} style={styles.input} />
           </div>
           <div style={{ marginBottom: "14px" }}>
             <label style={{ display: "block", marginBottom: "6px", fontSize: "0.85rem", color: "#94a3b8", fontWeight: 600 }}>
@@ -541,9 +615,14 @@ const [title, setTitle] = useState("");
             )}
           </div>
           <textarea className="dash-input" placeholder="Event description…" value={description} onChange={(e) => setDescription(e.target.value)} style={styles.textarea} />
-          <button className="primary-btn" onClick={createEvent} style={{ ...styles.primaryBtn, marginTop: "14px" }}>
-            🚀 Publish &amp; Share
-          </button>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "14px" }}>
+            <button className="primary-btn" disabled={saving} onClick={createEvent} style={{ ...styles.primaryBtn, opacity: saving ? 0.65 : 1 }}>
+              {saving ? "Saving…" : editingId ? "Save Event Changes" : "Publish Event"}
+            </button>
+            {editingId && (
+              <button type="button" onClick={resetEventForm} disabled={saving} style={styles.backBtn}>Cancel editing</button>
+            )}
+          </div>
         </div>
 
         {/* Dynamic Filters & Modern Report Panel */}
@@ -588,14 +667,16 @@ const [title, setTitle] = useState("");
           </div>
 
           <div style={{ display: "flex", gap: "8px" }}>
-            <button style={{ ...styles.downloadBtn, background: "linear-gradient(90deg, #10b981, #059669)" }} onClick={downloadCSV}>📊 CSV</button>
-            <button style={styles.downloadBtn} onClick={downloadReport}>📄 Word Doc</button>
-            <button style={{ ...styles.downloadBtn, background: "linear-gradient(90deg, #475569, #64748b)" }} onClick={handlePrint}>🖨️ Print PDF</button>
+            <button style={{ ...styles.downloadBtn, background: "linear-gradient(90deg, #10b981, #059669)" }} onClick={downloadEventsCSV}>📊 CSV</button>
+            <button style={styles.downloadBtn} onClick={downloadEventsWord}>📄 Word Doc</button>
+            <button style={{ ...styles.downloadBtn, background: "linear-gradient(90deg, #be123c, #e11d48)" }} onClick={handlePrint}>PDF Report</button>
           </div>
         </div>
 
         {/* Events List - Split by Date & Filters */}
-        {(() => {
+        {loading ? (
+          <div role="status" style={styles.emptyState}><p>Loading events and attendee records…</p></div>
+        ) : (() => {
           const filtered = getFilteredEvents();
           const today = new Date();
           today.setHours(0, 0, 0, 0);
@@ -653,6 +734,11 @@ const [title, setTitle] = useState("");
                           </div>
                         )}
                         <p style={styles.eventDesc}>{event.description}</p>
+                        {(event.location || event.time) && (
+                          <p style={{ margin: "8px 0 0", color: "#94a3b8", fontSize: "0.78rem" }}>
+                            {event.location ? `Location: ${event.location}` : ""}{event.location && event.time ? " · " : ""}{event.time ? `Time: ${event.time}` : ""}
+                          </p>
+                        )}
 
                         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }} className="no-print">
                           {(event.attendeesCount > 0 || (event.attendees && event.attendees.length > 0)) && (
@@ -669,8 +755,11 @@ const [title, setTitle] = useState("");
                           <button className="share-btn" onClick={() => shareToWhatsApp(event)} style={styles.shareBtn}>
                             💬 Re-Share to WhatsApp
                           </button>
-                          <button className="delete-btn" onClick={() => deleteEvent(event._id)} style={styles.deleteBtn}>
-                            🗑️ Delete Event
+                          <button type="button" onClick={() => editEvent(event)} style={styles.backBtn}>
+                            Edit Event
+                          </button>
+                          <button className="delete-btn" disabled={deletingId === event._id} onClick={() => deleteEvent(event._id)} style={{ ...styles.deleteBtn, opacity: deletingId === event._id ? 0.6 : 1 }}>
+                            {deletingId === event._id ? "Deleting…" : "🗑️ Delete Event"}
                           </button>
                         </div>
 
@@ -690,7 +779,7 @@ const [title, setTitle] = useState("");
                                 <tr>
                                   <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Name</th>
                                   <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Member ID</th>
-                                  <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>National ID</th>
+                                  <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>National ID (masked)</th>
                                   <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Phone</th>
                                 </tr>
                               </thead>
@@ -699,7 +788,7 @@ const [title, setTitle] = useState("");
                                   <tr key={i}>
                                     <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.name}</td>
                                     <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.memberId || "N/A"}</td>
-                                    <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.idNo || a.idNumber || "N/A"}</td>
+                                    <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{maskSensitiveId(a.idNo || a.idNumber)}</td>
                                     <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.phone}</td>
                                   </tr>
                                 ))}
@@ -752,6 +841,11 @@ const [title, setTitle] = useState("");
                           </div>
                         )}
                         <p style={styles.eventDescPast}>{event.description}</p>
+                        {(event.location || event.time) && (
+                          <p style={{ margin: "8px 0 0", color: "#64748b", fontSize: "0.78rem" }}>
+                            {event.location ? `Location: ${event.location}` : ""}{event.location && event.time ? " · " : ""}{event.time ? `Time: ${event.time}` : ""}
+                          </p>
+                        )}
 
                         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }} className="no-print">
                           {(event.attendeesCount > 0 || (event.attendees && event.attendees.length > 0)) && (
@@ -765,8 +859,11 @@ const [title, setTitle] = useState("");
                               👥 View Attendees ({event.attendees ? event.attendees.length : event.attendeesCount})
                             </button>
                           )}
-                          <button className="delete-btn" onClick={() => deleteEvent(event._id)} style={styles.deleteBtn}>
-                            🗑️ Delete Event
+                          <button type="button" onClick={() => editEvent(event)} style={styles.backBtn}>
+                            Edit Event
+                          </button>
+                          <button className="delete-btn" disabled={deletingId === event._id} onClick={() => deleteEvent(event._id)} style={{ ...styles.deleteBtn, opacity: deletingId === event._id ? 0.6 : 1 }}>
+                            {deletingId === event._id ? "Deleting…" : "🗑️ Delete Event"}
                           </button>
                         </div>
 
@@ -786,7 +883,7 @@ const [title, setTitle] = useState("");
                                 <tr>
                                   <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Name</th>
                                   <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Member ID</th>
-                                  <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>National ID</th>
+                                  <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>National ID (masked)</th>
                                   <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Phone</th>
                                 </tr>
                               </thead>
@@ -795,7 +892,7 @@ const [title, setTitle] = useState("");
                                   <tr key={i}>
                                     <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.name}</td>
                                     <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.memberId || "N/A"}</td>
-                                    <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.idNo || a.idNumber || "N/A"}</td>
+                                    <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{maskSensitiveId(a.idNo || a.idNumber)}</td>
                                     <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.phone}</td>
                                   </tr>
                                 ))}

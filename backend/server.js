@@ -79,7 +79,8 @@ dns.lookup = function (hostname, options, callback) {
 import Event from "./models/Event.js";
 import PrayerRequest from "./models/PrayerRequest.js";
 import Transaction from "./models/Transaction.js";
-import Project from "./models/Project.js";
+import AdminAuditLog from "./models/AdminAuditLog.js";
+import Project, { PROJECT_STATUSES } from "./models/Project.js";
 import Member from "./models/Member.js";
 import BaptismRequest from "./models/BaptismRequest.js";
 import Media from "./models/Media.js";
@@ -759,35 +760,6 @@ mongoose.connect(MONGO_URI)
       logError("Member gender maintenance failed", updateErr);
     }
 
-    // Migration to populate empty completed transaction receipt numbers
-    try {
-      const missingReceiptTransactions = await Transaction.find({
-        status: "Completed",
-        $or: [
-          { mpesaReceiptNumber: { $exists: false } },
-          { mpesaReceiptNumber: null },
-          { mpesaReceiptNumber: "" },
-          { mpesaReceiptNumber: "—" }
-        ]
-      });
-
-      if (missingReceiptTransactions.length > 0) {
-        logInfo("Transaction receipt migration started", { count: missingReceiptTransactions.length });
-        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-        for (const t of missingReceiptTransactions) {
-          let mockReceipt = "NL";
-          for (let i = 0; i < 8; i++) {
-            mockReceipt += chars.charAt(Math.floor(Math.random() * chars.length));
-          }
-          t.mpesaReceiptNumber = mockReceipt;
-          await t.save();
-        }
-        logInfo("Transaction receipt migration completed");
-      }
-    } catch (migErr) {
-      logError("Transaction receipt migration failed", migErr);
-    }
-
     // Migration to sync completed baptism requests with member records
     try {
       const completedBaptisms = await BaptismRequest.find({ status: "Completed" });
@@ -983,6 +955,258 @@ app.get("/auth/members/deleted", verifyToken, requireAdminRoles(ROLES.SUPER_ADMI
   }
 });
 
+const ADMIN_MEMBER_EDIT_FIELDS = new Set([
+  "firstName",
+  "lastName",
+  "email",
+  "phone",
+  "residence",
+  "gender",
+  "age",
+  "dateOfBirth",
+  "idNo",
+  "isBaptized"
+]);
+const ADMIN_MEMBER_GENDERS = new Set(["Male", "Female", "Other"]);
+const ADMIN_MEMBER_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const ADMIN_MEMBER_ID_PATTERN = /^[A-Z0-9][A-Z0-9/-]{2,29}$/;
+
+function hasOwnMemberField(value, field) {
+  return Object.prototype.hasOwnProperty.call(value, field);
+}
+
+function normalizeAdminMemberPhone(value) {
+  const compact = String(value || "").trim().replace(/[\s().-]/g, "");
+  if (!/^\+?\d{7,15}$/.test(compact)) return null;
+
+  let digits = compact.replace(/^\+/, "");
+  if (digits.startsWith("0") && digits.length === 10) {
+    digits = `254${digits.slice(1)}`;
+  }
+  return `+${digits}`;
+}
+
+function memberPhoneLookupPattern(phone) {
+  const digits = phone.replace(/\D/g, "");
+  const significantDigits = digits.startsWith("254") && digits.length === 12
+    ? digits.slice(3)
+    : digits;
+  return new RegExp(`${significantDigits.split("").join("[\\s().-]*")}$`);
+}
+
+function parseAdminMemberBirthDate(value) {
+  if (value === "" || value == null) return { value: undefined, age: undefined };
+
+  const dateText = String(value).trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateText);
+  if (!match) return { error: "Date of birth must be a valid calendar date." };
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return { error: "Date of birth must be a valid calendar date." };
+  }
+
+  const today = new Date();
+  if (date.getTime() > today.getTime()) {
+    return { error: "Date of birth cannot be in the future." };
+  }
+
+  let age = today.getUTCFullYear() - date.getUTCFullYear();
+  const monthDifference = today.getUTCMonth() - date.getUTCMonth();
+  if (monthDifference < 0 || (monthDifference === 0 && today.getUTCDate() < date.getUTCDate())) {
+    age -= 1;
+  }
+  if (age < 0 || age > 120) {
+    return { error: "Date of birth must produce an age between 0 and 120." };
+  }
+
+  return { value: date, age };
+}
+
+function serializeAdminMember(member) {
+  return {
+    _id: member._id,
+    memberId: member.memberId,
+    firstName: member.firstName,
+    lastName: member.lastName,
+    email: member.email,
+    phone: member.phone,
+    residence: member.residence,
+    gender: member.gender,
+    age: member.age,
+    dateOfBirth: member.dateOfBirth,
+    idNo: member.idNo,
+    isBaptized: member.isBaptized,
+    isDeleted: member.isDeleted,
+    createdAt: member.createdAt,
+    updatedAt: member.updatedAt
+  };
+}
+
+/* UPDATE MEMBER DIRECTORY RECORD (super admin only) */
+app.patch("/auth/members/:id", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN), async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid member ID." });
+    }
+    if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
+      return res.status(400).json({ message: "A valid member update is required." });
+    }
+
+    const suppliedFields = Object.keys(req.body);
+    const unsupportedFields = suppliedFields.filter((field) => !ADMIN_MEMBER_EDIT_FIELDS.has(field));
+    if (unsupportedFields.length > 0) {
+      return res.status(400).json({ message: "One or more supplied fields cannot be changed." });
+    }
+    if (suppliedFields.length === 0) {
+      return res.status(400).json({ message: "No member changes were provided." });
+    }
+
+    const member = await Member.findById(req.params.id);
+    if (!member) return res.status(404).json({ message: "Member not found." });
+
+    const changes = {};
+    const validateText = (field, label, maxLength, required = false) => {
+      if (!hasOwnMemberField(req.body, field)) return null;
+      if (typeof req.body[field] !== "string") return `${label} must be text.`;
+      const value = req.body[field].trim();
+      if (required && !value) return `${label} is required.`;
+      if (value.length > maxLength) return `${label} must be ${maxLength} characters or fewer.`;
+      changes[field] = value;
+      return null;
+    };
+
+    const textError =
+      validateText("firstName", "First name", 80, true) ||
+      validateText("lastName", "Last name", 80, true) ||
+      validateText("residence", "Area of residence", 120, true);
+    if (textError) return res.status(400).json({ message: textError });
+
+    if (hasOwnMemberField(req.body, "email")) {
+      if (typeof req.body.email !== "string") {
+        return res.status(400).json({ message: "Email must be text." });
+      }
+      const email = normalizeEmail(req.body.email);
+      if (!email || email.length > 254 || !ADMIN_MEMBER_EMAIL_PATTERN.test(email)) {
+        return res.status(400).json({ message: "Enter a valid email address." });
+      }
+      changes.email = email;
+    }
+
+    if (hasOwnMemberField(req.body, "phone")) {
+      const phone = normalizeAdminMemberPhone(req.body.phone);
+      if (!phone) {
+        return res.status(400).json({ message: "Enter a valid phone number with 7 to 15 digits." });
+      }
+      changes.phone = phone;
+    }
+
+    if (hasOwnMemberField(req.body, "gender")) {
+      if (!ADMIN_MEMBER_GENDERS.has(req.body.gender)) {
+        return res.status(400).json({ message: "Gender must be Male, Female, or Other." });
+      }
+      changes.gender = req.body.gender;
+    }
+
+    if (hasOwnMemberField(req.body, "age")) {
+      if (req.body.age === "" || req.body.age == null) {
+        changes.age = undefined;
+      } else {
+        const age = Number(req.body.age);
+        if (!Number.isInteger(age) || age < 0 || age > 120) {
+          return res.status(400).json({ message: "Age must be a whole number between 0 and 120." });
+        }
+        changes.age = age;
+      }
+    }
+
+    if (hasOwnMemberField(req.body, "dateOfBirth")) {
+      const parsedBirthDate = parseAdminMemberBirthDate(req.body.dateOfBirth);
+      if (parsedBirthDate.error) {
+        return res.status(400).json({ message: parsedBirthDate.error });
+      }
+      changes.dateOfBirth = parsedBirthDate.value;
+      if (parsedBirthDate.value) changes.age = parsedBirthDate.age;
+    }
+
+    if (hasOwnMemberField(req.body, "idNo")) {
+      if (req.body.idNo !== "" && req.body.idNo != null && typeof req.body.idNo !== "string") {
+        return res.status(400).json({ message: "National ID or passport number must be text." });
+      }
+      const idNo = String(req.body.idNo || "").trim().toUpperCase();
+      if (idNo && !ADMIN_MEMBER_ID_PATTERN.test(idNo)) {
+        return res.status(400).json({ message: "National ID or passport number must be 3 to 30 letters, numbers, slashes, or hyphens." });
+      }
+      changes.idNo = idNo || undefined;
+    }
+
+    if (hasOwnMemberField(req.body, "isBaptized")) {
+      if (typeof req.body.isBaptized !== "boolean") {
+        return res.status(400).json({ message: "Baptism status must be true or false." });
+      }
+      changes.isBaptized = req.body.isBaptized;
+    }
+
+    const effectiveRequiredFields = {
+      firstName: hasOwnMemberField(changes, "firstName") ? changes.firstName : member.firstName,
+      lastName: hasOwnMemberField(changes, "lastName") ? changes.lastName : member.lastName,
+      email: hasOwnMemberField(changes, "email") ? changes.email : member.email,
+      phone: hasOwnMemberField(changes, "phone") ? changes.phone : member.phone,
+      residence: hasOwnMemberField(changes, "residence") ? changes.residence : member.residence,
+      gender: hasOwnMemberField(changes, "gender") ? changes.gender : member.gender
+    };
+    if (Object.values(effectiveRequiredFields).some((value) => !String(value || "").trim())) {
+      return res.status(400).json({ message: "Name, email, phone, residence, and gender are required." });
+    }
+
+    const [emailOwner, phoneOwner, idOwner] = await Promise.all([
+      changes.email
+        ? Member.exists({ _id: { $ne: member._id }, email: exactCaseInsensitiveRegExp(changes.email) })
+        : null,
+      changes.phone
+        ? Member.exists({ _id: { $ne: member._id }, phone: { $regex: memberPhoneLookupPattern(changes.phone) } })
+        : null,
+      changes.idNo
+        ? Member.exists({ _id: { $ne: member._id }, idNo: exactCaseInsensitiveRegExp(changes.idNo) })
+        : null
+    ]);
+    if (emailOwner) return res.status(409).json({ message: "That email address belongs to another member." });
+    if (phoneOwner) return res.status(409).json({ message: "That phone number belongs to another member." });
+    if (idOwner) return res.status(409).json({ message: "That national ID or passport number belongs to another member." });
+
+    member.set(changes);
+    await member.save();
+    logInfo("Member directory record updated", {
+      area: "admin",
+      role: req.admin.role,
+      resourceId: String(member._id)
+    });
+    return res.json({
+      message: "Member record updated successfully.",
+      member: serializeAdminMember(member)
+    });
+  } catch (err) {
+    if (err?.code === 11000) {
+      const field = Object.keys(err.keyPattern || {})[0];
+      const message = field === "email"
+        ? "That email address belongs to another member."
+        : "A member already uses one of those unique details.";
+      return res.status(409).json({ message });
+    }
+    if (err?.name === "ValidationError") {
+      return res.status(400).json({ message: err.message });
+    }
+    return handleServerError(res, err);
+  }
+});
+
 /* DELETE MEMBER (soft delete, admin only) */
 app.delete("/auth/members/:id", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN), async (req, res) => {
   try {
@@ -1135,6 +1359,123 @@ app.get("/admin/me", verifyToken, (req, res) => {
   });
 });
 
+/* ORGANIZATION-WIDE ADMIN REPORTING OVERVIEW */
+app.get("/api/admin/overview", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN), async (req, res) => {
+  try {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const [
+      activeMembers, inactiveMembers, newMembers, transactionSummary, transactionCategories,
+      upcomingEvents, pastEvents, eventRegistrations, unreadPrayers, totalPrayers,
+      baptismSummary, sermonSummary, gallerySummary, projects, ministers,
+    ] = await Promise.all([
+      Member.countDocuments({ isDeleted: { $ne: true } }),
+      Member.countDocuments({ isDeleted: true }),
+      Member.countDocuments({ isDeleted: { $ne: true }, createdAt: { $gte: thirtyDaysAgo } }),
+      Transaction.aggregate([{ $group: { _id: "$status", count: { $sum: 1 }, amount: { $sum: "$amount" } } }]),
+      Transaction.aggregate([
+        { $match: { status: "Completed" } },
+        { $group: { _id: "$category", count: { $sum: 1 }, amount: { $sum: "$amount" } } },
+        { $sort: { amount: -1 } },
+      ]),
+      Event.countDocuments({ date: { $gte: now } }),
+      Event.countDocuments({ date: { $lt: now } }),
+      Event.aggregate([{ $group: { _id: null, total: { $sum: { $size: { $ifNull: ["$attendees", []] } } } } }]),
+      PrayerRequest.countDocuments({ isArchived: { $ne: true }, isRead: { $ne: true } }),
+      PrayerRequest.countDocuments({ isArchived: { $ne: true } }),
+      BaptismRequest.aggregate([
+        { $match: { isArchived: { $ne: true } } },
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+      ]),
+      Sermon.aggregate([{
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          published: { $sum: { $cond: ["$isPublished", 1, 0] } },
+          featured: { $sum: { $cond: ["$isFeatured", 1, 0] } },
+          views: { $sum: "$views" },
+          downloads: { $sum: "$downloads.total" },
+        },
+      }]),
+      Media.aggregate([{ $group: { _id: null, folders: { $sum: 1 }, files: { $sum: { $size: { $ifNull: ["$files", []] } } } } }]),
+      Project.countDocuments(),
+      Minister.countDocuments(),
+    ]);
+
+    const transactionMap = Object.fromEntries(transactionSummary.map((item) => [item._id, { count: item.count, amount: item.amount }]));
+    const baptismMap = Object.fromEntries(baptismSummary.map((item) => [item._id, item.count]));
+    res.set("Cache-Control", "private, no-store");
+    res.json({
+      generatedAt: now,
+      period: { from: thirtyDaysAgo, to: now },
+      membership: { active: activeMembers, inactive: inactiveMembers, newLast30Days: newMembers },
+      finance: {
+        completed: transactionMap.Completed || { count: 0, amount: 0 },
+        pending: transactionMap.Pending || { count: 0, amount: 0 },
+        failed: transactionMap.Failed || { count: 0, amount: 0 },
+        categories: transactionCategories.map((item) => ({ category: item._id || "Uncategorized", count: item.count, amount: item.amount })),
+      },
+      events: { upcoming: upcomingEvents, past: pastEvents, registrations: eventRegistrations[0]?.total || 0 },
+      pastoralCare: { prayers: totalPrayers, unreadPrayers },
+      baptism: { pending: baptismMap.Pending || 0, completed: baptismMap.Completed || 0 },
+      sermons: sermonSummary[0] || { total: 0, published: 0, featured: 0, views: 0, downloads: 0 },
+      media: gallerySummary[0] || { folders: 0, files: 0 },
+      operations: { projects, ministers },
+    });
+  } catch (err) {
+    handleServerError(res, err, "Could not generate organization overview");
+  }
+});
+
+app.post("/api/admin/report-audit", verifyToken, async (req, res) => {
+  try {
+    const format = ["csv", "word", "pdf"].includes(req.body.format) ? req.body.format : "unknown";
+    const suppliedReportId = String(req.body.reportId || "").trim().toUpperCase();
+    const reportId = /^OHC-[A-Z0-9-]{4,64}$/.test(suppliedReportId)
+      ? suppliedReportId
+      : `OHC-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString("hex").toUpperCase()}`;
+    const suppliedFilters = req.body.filters && typeof req.body.filters === "object" && !Array.isArray(req.body.filters)
+      ? Object.entries(req.body.filters).slice(0, 20)
+      : [];
+    const filters = Object.fromEntries(suppliedFilters.map(([label, value]) => [
+      truncateText(label, 80),
+      truncateText(typeof value === "string" ? value : JSON.stringify(value), 250),
+    ]));
+    const log = await AdminAuditLog.create({
+      actorEmail: req.admin.email,
+      actorRole: req.admin.role,
+      action: "report.export",
+      resourceType: "report",
+      reportId,
+      reportTitle: truncateText(req.body.title || "Administrative report", 160),
+      format,
+      recordCount: Math.max(0, Number(req.body.recordCount) || 0),
+      filters,
+      requestId: crypto.randomUUID(),
+      ip: req.ip,
+      userAgent: truncateText(req.get("user-agent") || "", 300),
+    });
+    res.status(201).json({ auditId: log._id, requestId: log.requestId, reportId: log.reportId });
+  } catch (err) {
+    handleServerError(res, err, "Could not record report export");
+  }
+});
+
+app.get("/api/admin/report-audit", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN), async (req, res) => {
+  try {
+    const logs = await AdminAuditLog.find({ action: "report.export" })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .select("-ip -userAgent")
+      .lean();
+    res.json(logs);
+  } catch (err) {
+    handleServerError(res, err, "Could not load report history");
+  }
+});
+
 /* GET LOGGED IN MEMBER PROFILE */
 app.get("/auth/me", verifyMemberToken, async (req, res) => {
   try {
@@ -1146,18 +1487,91 @@ app.get("/auth/me", verifyMemberToken, async (req, res) => {
   }
 });
 
+/* UPDATE LOGGED IN MEMBER PROFILE */
+app.patch("/auth/me", verifyMemberToken, async (req, res) => {
+  try {
+    const member = await Member.findById(req.member.id);
+    if (!member || member.isDeleted) return res.status(404).json({ message: "Member not found" });
+
+    const firstName = truncateText(req.body.firstName, 80).trim();
+    const lastName = truncateText(req.body.lastName, 80).trim();
+    const phone = truncateText(req.body.phone, 30).trim();
+    const residence = truncateText(req.body.residence, 120).trim();
+    const email = normalizeEmail(req.body.email);
+
+    if (!firstName || !lastName || !phone || !residence || !email) {
+      return res.status(400).json({ message: "Name, email, phone, and area of residence are required." });
+    }
+
+    const emailOwner = await Member.findOne({ email, _id: { $ne: member._id } });
+    if (emailOwner) return res.status(409).json({ message: "That email address is already in use." });
+
+    Object.assign(member, { firstName, lastName, phone, residence, email });
+    await member.save();
+    res.json({
+      message: "Profile updated.",
+      member: {
+        id: member._id,
+        memberId: member.memberId,
+        firstName: member.firstName,
+        lastName: member.lastName,
+        email: member.email,
+        phone: member.phone,
+        residence: member.residence,
+        updatedAt: member.updatedAt
+      }
+    });
+  } catch (err) {
+    handleServerError(res, err);
+  }
+});
+
+/* CHANGE LOGGED IN MEMBER PASSWORD */
+app.patch("/auth/me/password", authLimiter, verifyMemberToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: "Current and new passwords are required." });
+    }
+    if (String(newPassword).length < 8) {
+      return res.status(400).json({ message: "New password must be at least 8 characters." });
+    }
+
+    const member = await Member.findById(req.member.id);
+    if (!member || member.isDeleted) return res.status(404).json({ message: "Member not found" });
+    if (!(await bcrypt.compare(currentPassword, member.passwordHash))) {
+      return res.status(401).json({ message: "Current password is incorrect." });
+    }
+
+    member.passwordHash = await bcrypt.hash(newPassword, 10);
+    await member.save();
+    res.json({ message: "Password changed successfully." });
+  } catch (err) {
+    handleServerError(res, err);
+  }
+});
+
 /* CREATE EVENT */
 app.post("/events", uploadLimiter, verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.EVENTS_ADMIN), upload.single("banner"), async (req, res) => {
   try {
     if (req.file && !validateUploadedFiles(req.file)) {
       return res.status(400).json({ message: "Uploaded file content does not match an allowed media type." });
     }
+    if (!String(req.body.title || "").trim() || !req.body.date) {
+      removeUploadedFiles([req.file].filter(Boolean));
+      return res.status(400).json({ message: "Event title and date are required." });
+    }
+    const eventDate = new Date(req.body.date);
+    if (Number.isNaN(eventDate.getTime())) {
+      removeUploadedFiles([req.file].filter(Boolean));
+      return res.status(400).json({ message: "Event date is invalid." });
+    }
 
     const eventCode = "EVT-" + Math.floor(1000 + Math.random() * 9000);
     const eventData = {
       title: truncateText(req.body.title, 150),
       description: truncateText(req.body.description, 3000),
-      date: req.body.date,
+      date: eventDate,
       location: truncateText(req.body.location || "", 200),
       time: truncateText(req.body.time || "", 50),
       eventCode
@@ -1167,8 +1581,9 @@ app.post("/events", uploadLimiter, verifyToken, requireAdminRoles(ROLES.SUPER_AD
     }
     const event = new Event(eventData);
     await event.save();
-    res.send("Event created");
+    res.status(201).json({ message: "Event created", event });
   } catch (err) {
+    removeUploadedFiles([req.file].filter(Boolean));
     handleServerError(res, err);
   }
 });
@@ -1252,17 +1667,218 @@ app.post("/events/:id/attend", publicWriteLimiter, optionalMemberToken, async (r
   }
 });
 
+/* UPDATE EVENT */
+app.patch("/events/:id", uploadLimiter, verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.EVENTS_ADMIN), upload.single("banner"), async (req, res) => {
+  try {
+    if (req.file && !validateUploadedFiles(req.file)) {
+      return res.status(400).json({ message: "Uploaded file content does not match an allowed media type." });
+    }
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      removeUploadedFiles([req.file].filter(Boolean));
+      return res.status(400).json({ message: "Invalid event ID" });
+    }
+
+    const event = await Event.findById(req.params.id);
+    if (!event) {
+      removeUploadedFiles([req.file].filter(Boolean));
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body, "title")) {
+      const title = truncateText(req.body.title, 150);
+      if (!title) {
+        removeUploadedFiles([req.file].filter(Boolean));
+        return res.status(400).json({ message: "Event title is required." });
+      }
+      event.title = title;
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body, "description")) {
+      event.description = truncateText(req.body.description, 3000);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body, "date")) {
+      const eventDate = new Date(req.body.date);
+      if (Number.isNaN(eventDate.getTime())) {
+        removeUploadedFiles([req.file].filter(Boolean));
+        return res.status(400).json({ message: "Event date is invalid." });
+      }
+      event.date = eventDate;
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body, "location")) {
+      event.location = truncateText(req.body.location, 200);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body, "time")) {
+      event.time = truncateText(req.body.time, 50);
+    }
+
+    const previousBanner = event.banner;
+    if (req.file) event.banner = `/uploads/${req.file.filename}`;
+    await event.save();
+
+    if (req.file && previousBanner && previousBanner !== event.banner) {
+      const oldBannerPath = resolveUploadPath(previousBanner);
+      if (oldBannerPath && fs.existsSync(oldBannerPath)) {
+        try {
+          fs.unlinkSync(oldBannerPath);
+        } catch (fileError) {
+          logError("Failed to remove replaced event banner", fileError);
+        }
+      }
+    }
+
+    res.json({ message: "Event updated", event });
+  } catch (err) {
+    removeUploadedFiles([req.file].filter(Boolean));
+    handleServerError(res, err);
+  }
+});
+
 /* DELETE EVENT */
 app.delete("/events/:id", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.EVENTS_ADMIN), async (req, res) => {
   try {
-    await Event.findByIdAndDelete(req.params.id);
-    res.send("Event deleted");
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid event ID" });
+    }
+    const event = await Event.findByIdAndDelete(req.params.id);
+    if (!event) return res.status(404).json({ message: "Event not found" });
+    const bannerPath = resolveUploadPath(event.banner);
+    if (bannerPath && fs.existsSync(bannerPath)) {
+      try {
+        fs.unlinkSync(bannerPath);
+      } catch (fileError) {
+        logError("Failed to remove deleted event banner", fileError);
+      }
+    }
+    res.json({ message: "Event deleted" });
   } catch (err) {
     handleServerError(res, err);
   }
 });
 
 /* PROJECTS */
+const MAX_PROJECT_AMOUNT = 1_000_000_000_000;
+const hasOwnProjectField = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
+
+function parseProjectDate(value, label) {
+  if (value === "" || value === null) return { value: null };
+  if (typeof value !== "string" && !(value instanceof Date)) {
+    return { error: `${label} must be a valid date.` };
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return { error: `${label} must be a valid date.` };
+  return { value: parsed };
+}
+
+function parseProjectNumber(value, label, maximum = MAX_PROJECT_AMOUNT) {
+  if (value === "" || value === null) return { value: null };
+  if (typeof value === "boolean" || (typeof value === "object" && value !== null)) {
+    return { error: `${label} must be a number.` };
+  }
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > maximum) {
+    return { error: `${label} must be between 0 and ${maximum.toLocaleString("en-KE")}.` };
+  }
+  return { value: parsed };
+}
+
+function buildProjectPayload(body, currentProject = null) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { error: "Project details must be provided." };
+  }
+
+  const isUpdate = Boolean(currentProject);
+  const payload = {};
+  const setRequiredText = (field, label, maxLength) => {
+    if (isUpdate && !hasOwnProjectField(body, field)) return null;
+    if (typeof body[field] !== "string") return `${label} is required.`;
+    const value = truncateText(body[field], maxLength);
+    if (!value) return `${label} is required.`;
+    payload[field] = value;
+    return null;
+  };
+
+  const titleError = setRequiredText("title", "Project title", 180);
+  if (titleError) return { error: titleError };
+  const descriptionError = setRequiredText("description", "Project description", 5000);
+  if (descriptionError) return { error: descriptionError };
+
+  if (!isUpdate || hasOwnProjectField(body, "status")) {
+    const status = hasOwnProjectField(body, "status") ? body.status : "Ongoing";
+    if (typeof status !== "string" || !PROJECT_STATUSES.includes(status)) {
+      return { error: `Status must be one of: ${PROJECT_STATUSES.join(", ")}.` };
+    }
+    payload.status = status;
+  }
+
+  if (hasOwnProjectField(body, "owner")) {
+    if (body.owner !== null && typeof body.owner !== "string") {
+      return { error: "Project owner must be text." };
+    }
+    payload.owner = truncateText(body.owner || "", 160);
+  }
+
+  for (const [field, label] of [["startDate", "Start date"], ["endDate", "End date"]]) {
+    if (!hasOwnProjectField(body, field)) continue;
+    const parsed = parseProjectDate(body[field], label);
+    if (parsed.error) return parsed;
+    payload[field] = parsed.value;
+  }
+
+  for (const [field, label] of [["budget", "Budget"], ["amountRaised", "Amount raised"]]) {
+    if (!hasOwnProjectField(body, field)) continue;
+    const parsed = parseProjectNumber(body[field], label);
+    if (parsed.error) return parsed;
+    payload[field] = parsed.value;
+  }
+
+  if (!isUpdate || hasOwnProjectField(body, "progress")) {
+    const parsed = parseProjectNumber(
+      hasOwnProjectField(body, "progress") ? body.progress : 0,
+      "Progress",
+      100
+    );
+    if (parsed.error || parsed.value === null) {
+      return { error: parsed.error || "Progress must be between 0 and 100." };
+    }
+    payload.progress = parsed.value;
+  }
+
+  if (hasOwnProjectField(body, "iconName")) {
+    if (body.iconName !== null && typeof body.iconName !== "string") {
+      return { error: "Project icon must be text." };
+    }
+    payload.iconName = truncateText(body.iconName || "IconHammer", 80);
+  }
+
+  const effectiveStart = hasOwnProjectField(payload, "startDate")
+    ? payload.startDate
+    : currentProject?.startDate || null;
+  const effectiveEnd = hasOwnProjectField(payload, "endDate")
+    ? payload.endDate
+    : currentProject?.endDate || null;
+  if (effectiveStart && effectiveEnd && effectiveEnd < effectiveStart) {
+    return { error: "End date cannot be earlier than the start date." };
+  }
+
+  const effectiveStatus = payload.status || currentProject?.status || "Ongoing";
+  const effectiveProgress = hasOwnProjectField(payload, "progress")
+    ? payload.progress
+    : currentProject?.progress || 0;
+  if (effectiveStatus === "Completed" && effectiveProgress < 100) {
+    if (hasOwnProjectField(body, "progress")) {
+      return { error: "Completed projects must have 100% progress." };
+    }
+    payload.progress = 100;
+  }
+
+  if (isUpdate && Object.keys(payload).length === 0) {
+    return { error: "No supported project changes were provided." };
+  }
+
+  return { payload };
+}
+
 app.get("/projects", async (req, res) => {
   try {
     const projects = await Project.find().sort({ createdAt: -1 });
@@ -1274,17 +1890,53 @@ app.get("/projects", async (req, res) => {
 
 app.post("/projects", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.CONTENT_ADMIN), async (req, res) => {
   try {
-    const project = new Project(req.body);
+    const { payload, error } = buildProjectPayload(req.body);
+    if (error) return res.status(400).json({ message: error });
+
+    const project = new Project(payload);
     await project.save();
-    res.status(201).json({ message: "Project created" });
+    res.status(201).json({ message: "Project created", project });
   } catch (err) {
+    if (err.name === "ValidationError") {
+      return res.status(400).json({ message: err.message });
+    }
     handleServerError(res, err);
   }
 });
 
+const updateProject = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid project ID." });
+    }
+
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ message: "Project not found." });
+
+    const { payload, error } = buildProjectPayload(req.body, project);
+    if (error) return res.status(400).json({ message: error });
+
+    project.set(payload);
+    await project.save();
+    return res.json({ message: "Project updated", project });
+  } catch (err) {
+    if (err.name === "ValidationError") {
+      return res.status(400).json({ message: err.message });
+    }
+    return handleServerError(res, err);
+  }
+};
+
+app.patch("/projects/:id", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.CONTENT_ADMIN), updateProject);
+app.put("/projects/:id", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.CONTENT_ADMIN), updateProject);
+
 app.delete("/projects/:id", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.CONTENT_ADMIN), async (req, res) => {
   try {
-    await Project.findByIdAndDelete(req.params.id);
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid project ID." });
+    }
+    const project = await Project.findByIdAndDelete(req.params.id);
+    if (!project) return res.status(404).json({ message: "Project not found." });
     res.json({ message: "Project deleted" });
   } catch (err) {
     handleServerError(res, err);
@@ -1316,18 +1968,32 @@ app.post("/prayer-requests", publicWriteLimiter, async (req, res) => {
 /* GET ALL PRAYER REQUESTS (admin only) */
 app.get("/prayer-requests", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.CONTENT_ADMIN), async (req, res) => {
   try {
-    const prayerRequests = await PrayerRequest.find().sort({ createdAt: -1 });
+    const view = String(req.query.view || "active").toLowerCase();
+    const query = view === "all"
+      ? {}
+      : view === "archived"
+        ? { isArchived: true }
+        : { isArchived: { $ne: true } };
+    const prayerRequests = await PrayerRequest.find(query).sort({ createdAt: -1 });
     res.json(prayerRequests);
   } catch (err) {
     handleServerError(res, err);
   }
 });
 
-/* DELETE PRAYER REQUEST (admin only) */
+/* ARCHIVE PRAYER REQUEST (admin only) */
 app.delete("/prayer-requests/:id", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.CONTENT_ADMIN), async (req, res) => {
   try {
-    await PrayerRequest.findByIdAndDelete(req.params.id);
-    res.json({ message: "Prayer request deleted" });
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid prayer request ID" });
+    }
+    const prayerRequest = await PrayerRequest.findByIdAndUpdate(
+      req.params.id,
+      { isArchived: true, archivedAt: new Date() },
+      { new: true }
+    );
+    if (!prayerRequest) return res.status(404).json({ message: "Prayer request not found" });
+    res.json({ message: "Prayer request archived" });
   } catch (err) {
     handleServerError(res, err);
   }
@@ -1336,9 +2002,37 @@ app.delete("/prayer-requests/:id", verifyToken, requireAdminRoles(ROLES.SUPER_AD
 /* UPDATE PRAYER REQUEST READ STATUS (admin only) */
 app.patch("/prayer-requests/:id/read", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.CONTENT_ADMIN), async (req, res) => {
   try {
-    const { isRead } = req.body;
-    await PrayerRequest.findByIdAndUpdate(req.params.id, { isRead });
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid prayer request ID" });
+    }
+    const isRead = req.body.isRead === true;
+    const prayerRequest = await PrayerRequest.findOneAndUpdate(
+      { _id: req.params.id, isArchived: { $ne: true } },
+      isRead
+        ? { $set: { isRead: true, prayedAt: new Date() } }
+        : { $set: { isRead: false }, $unset: { prayedAt: 1 } },
+      { new: true }
+    );
+    if (!prayerRequest) return res.status(404).json({ message: "Active prayer request not found" });
     res.json({ message: "Prayer request status updated" });
+  } catch (err) {
+    handleServerError(res, err);
+  }
+});
+
+/* RESTORE PRAYER REQUEST (admin only) */
+app.patch("/prayer-requests/:id/restore", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.CONTENT_ADMIN), async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid prayer request ID" });
+    }
+    const prayerRequest = await PrayerRequest.findByIdAndUpdate(
+      req.params.id,
+      { $set: { isArchived: false }, $unset: { archivedAt: 1 } },
+      { new: true }
+    );
+    if (!prayerRequest) return res.status(404).json({ message: "Prayer request not found" });
+    res.json({ message: "Prayer request restored" });
   } catch (err) {
     handleServerError(res, err);
   }
@@ -1425,7 +2119,10 @@ app.post("/api/baptism-requests", publicWriteLimiter, async (req, res) => {
 /* GET MY BAPTISM REQUESTS (member only) */
 app.get("/api/my-baptism-requests", verifyMemberToken, async (req, res) => {
   try {
-    const requests = await BaptismRequest.find({ email: req.member.email.toLowerCase() }).sort({ createdAt: -1 });
+    const requests = await BaptismRequest.find({
+      email: req.member.email.toLowerCase(),
+      isArchived: { $ne: true },
+    }).sort({ createdAt: -1 });
     res.json(requests);
   } catch (err) {
     handleServerError(res, err);
@@ -1437,6 +2134,7 @@ app.patch("/api/my-baptism-requests/:id", verifyMemberToken, async (req, res) =>
   try {
     const request = await BaptismRequest.findById(req.params.id);
     if (!request) return res.status(404).json({ message: "Request not found." });
+    if (request.isArchived) return res.status(400).json({ message: "Archived requests cannot be edited." });
 
     // Only allow editing own request
     if (request.email.toLowerCase() !== req.member.email.toLowerCase()) {
@@ -1489,7 +2187,13 @@ app.patch("/api/my-baptism-requests/:id", verifyMemberToken, async (req, res) =>
 /* GET ALL BAPTISM REQUESTS (admin only) */
 app.get("/api/admin/baptism-requests", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.CONTENT_ADMIN), async (req, res) => {
   try {
-    const baptismRequests = await BaptismRequest.find().sort({ createdAt: -1 });
+    const view = String(req.query.view || "active").toLowerCase();
+    const query = view === "all"
+      ? {}
+      : view === "archived"
+        ? { isArchived: true }
+        : { isArchived: { $ne: true } };
+    const baptismRequests = await BaptismRequest.find(query).sort({ createdAt: -1 });
     res.json(baptismRequests);
   } catch (err) {
     handleServerError(res, err);
@@ -1499,11 +2203,21 @@ app.get("/api/admin/baptism-requests", verifyToken, requireAdminRoles(ROLES.SUPE
 /* UPDATE BAPTISM REQUEST STATUS (admin only) */
 app.patch("/api/admin/baptism-requests/:id/status", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.CONTENT_ADMIN), async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid baptism request ID" });
+    }
     const { status } = req.body;
     if (!status || !["Pending", "Completed"].includes(status)) {
       return res.status(400).json({ message: "Invalid status" });
     }
-    const request = await BaptismRequest.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    const statusUpdate = status === "Completed"
+      ? { $set: { status, completedAt: new Date() } }
+      : { $set: { status }, $unset: { completedAt: 1 } };
+    const request = await BaptismRequest.findOneAndUpdate(
+      { _id: req.params.id, isArchived: { $ne: true } },
+      statusUpdate,
+      { new: true }
+    );
     if (!request) {
       return res.status(404).json({ message: "Baptism request not found" });
     }
@@ -1518,20 +2232,37 @@ app.patch("/api/admin/baptism-requests/:id/status", verifyToken, requireAdminRol
   }
 });
 
-/* DELETE BAPTISM REQUEST (admin only) */
+/* ARCHIVE BAPTISM REQUEST (admin only) */
 app.delete("/api/admin/baptism-requests/:id", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.CONTENT_ADMIN), async (req, res) => {
   try {
-    const request = await BaptismRequest.findById(req.params.id);
-    if (request) {
-      if (request.status === "Completed") {
-        await Member.findOneAndUpdate(
-          { email: { $regex: exactCaseInsensitiveRegExp(request.email) } },
-          { isBaptized: false }
-        );
-      }
-      await request.deleteOne();
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid baptism request ID" });
     }
-    res.json({ message: "Baptism request deleted" });
+    const request = await BaptismRequest.findByIdAndUpdate(
+      req.params.id,
+      { $set: { isArchived: true, archivedAt: new Date() } },
+      { new: true }
+    );
+    if (!request) return res.status(404).json({ message: "Baptism request not found" });
+    res.json({ message: "Baptism request archived" });
+  } catch (err) {
+    handleServerError(res, err);
+  }
+});
+
+/* RESTORE BAPTISM REQUEST (admin only) */
+app.patch("/api/admin/baptism-requests/:id/restore", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.CONTENT_ADMIN), async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid baptism request ID" });
+    }
+    const request = await BaptismRequest.findByIdAndUpdate(
+      req.params.id,
+      { $set: { isArchived: false }, $unset: { archivedAt: 1 } },
+      { new: true }
+    );
+    if (!request) return res.status(404).json({ message: "Baptism request not found" });
+    res.json({ message: "Baptism request restored" });
   } catch (err) {
     handleServerError(res, err);
   }
@@ -1801,6 +2532,8 @@ app.post("/api/mpesa/callback", async (req, res) => {
       }
 
       transaction.status = "Completed";
+      transaction.paidAt = transaction.paidAt || new Date();
+      transaction.verifiedAt = new Date();
       transaction.resultCode = resultCode;
       transaction.resultDesc = resultDesc || verification.ResultDesc || "Completed successfully";
 
@@ -1850,6 +2583,8 @@ app.get("/api/transactions/status/:checkoutRequestId", statusLimiter, async (req
 
         if (isMpesaSuccess(result)) {
           transaction.status = "Completed";
+          transaction.paidAt = transaction.paidAt || new Date();
+          transaction.verifiedAt = new Date();
           transaction.resultCode = result.ResultCode ?? result.ResponseCode;
           transaction.resultDesc = result.ResultDesc || "Completed successfully";
           await transaction.save();

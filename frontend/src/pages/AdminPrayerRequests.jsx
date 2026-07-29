@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { downloadCsvReport, downloadPdfReport, downloadWordReport, formatReportDate } from "../adminReports";
 
 function AdminPrayerRequests() {
   const [prayerRequests, setPrayerRequests] = useState([]);
@@ -8,6 +9,9 @@ function AdminPrayerRequests() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [urgencyFilter, setUrgencyFilter] = useState("all");
   const [expandedId, setExpandedId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [busyId, setBusyId] = useState("");
   const getToken = () => localStorage.getItem("token");
   const navigate = useNavigate();
 
@@ -22,23 +26,57 @@ function AdminPrayerRequests() {
   };
 
   const fetchPrayerRequests = async () => {
+    setError("");
     try {
-      const res = await axios.get("/prayer-requests", {
+      const res = await axios.get("/prayer-requests?view=all", {
         headers: { Authorization: getToken() },
       });
       setPrayerRequests(res.data);
     } catch (err) {
-      if (!handleAuthError(err)) setPrayerRequests([]);
+      if (!handleAuthError(err)) {
+        setError(err.response?.data?.message || "Prayer requests could not be refreshed.");
+      }
     }
   };
 
   useEffect(() => {
-    if (getToken()) fetchPrayerRequests();
-    else navigate("/admin-login");
-  }, []);
+    const token = getToken();
+    if (!token) {
+      navigate("/admin-login");
+      return undefined;
+    }
 
-  const deletePrayerRequest = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this prayer request?")) return;
+    let active = true;
+    axios.get("/prayer-requests?view=all", {
+      headers: { Authorization: token },
+    }).then((res) => {
+      if (active) {
+        setPrayerRequests(res.data);
+        setError("");
+      }
+    }).catch((err) => {
+      if (!active) return;
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        alert("Your session has expired. Please log in again.");
+        localStorage.removeItem("token");
+        navigate("/admin-login");
+      } else {
+        setError(err.response?.data?.message || "Prayer requests could not be loaded. Check the connection and retry.");
+      }
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [navigate]);
+
+  const archivePrayerRequest = async (id) => {
+    const request = prayerRequests.find((item) => item._id === id);
+    if (!window.confirm(`Archive the prayer request from ${request?.name || "this person"}? It will be retained and can be restored later.`)) return;
+    setBusyId(id);
+    setError("");
     try {
       await axios.delete(`/prayer-requests/${id}`, {
         headers: { Authorization: getToken() },
@@ -46,11 +84,30 @@ function AdminPrayerRequests() {
       if (expandedId === id) setExpandedId(null);
       fetchPrayerRequests();
     } catch (err) {
-      if (!handleAuthError(err)) alert("Failed to delete. Please try again.");
+      if (!handleAuthError(err)) setError(err.response?.data?.message || "The request could not be archived.");
+    } finally {
+      setBusyId("");
+    }
+  };
+
+  const restorePrayerRequest = async (id) => {
+    setBusyId(id);
+    setError("");
+    try {
+      await axios.patch(`/prayer-requests/${id}/restore`, {}, {
+        headers: { Authorization: getToken() },
+      });
+      await fetchPrayerRequests();
+    } catch (err) {
+      if (!handleAuthError(err)) setError(err.response?.data?.message || "The request could not be restored.");
+    } finally {
+      setBusyId("");
     }
   };
 
   const toggleReadStatus = async (id, currentStatus) => {
+    setBusyId(id);
+    setError("");
     try {
       await axios.patch(
         `/prayer-requests/${id}/read`,
@@ -59,7 +116,9 @@ function AdminPrayerRequests() {
       );
       fetchPrayerRequests();
     } catch (err) {
-      if (!handleAuthError(err)) alert("Failed to update status. Please try again.");
+      if (!handleAuthError(err)) setError(err.response?.data?.message || "The pastoral-care status could not be updated.");
+    } finally {
+      setBusyId("");
     }
   };
 
@@ -72,6 +131,8 @@ function AdminPrayerRequests() {
 
   const filteredRequests = prayerRequests.filter((pr) => {
     const { category, urgency } = parseRequest(pr.request);
+    if (filter === "archived" && !pr.isArchived) return false;
+    if (filter !== "archived" && pr.isArchived) return false;
     if (filter === "unread" && pr.isRead) return false;
     if (filter === "read" && !pr.isRead) return false;
     if (categoryFilter !== "all" && !category?.toLowerCase().includes(categoryFilter.toLowerCase())) return false;
@@ -79,8 +140,115 @@ function AdminPrayerRequests() {
     return true;
   });
 
-  const unreadCount = prayerRequests.filter((pr) => !pr.isRead).length;
-  const readCount = prayerRequests.length - unreadCount;
+  const activeRequests = prayerRequests.filter((pr) => !pr.isArchived);
+  const archivedCount = prayerRequests.length - activeRequests.length;
+  const unreadCount = activeRequests.filter((pr) => !pr.isRead).length;
+  const readCount = activeRequests.length - unreadCount;
+
+  const getReportRows = () => filteredRequests.map((request) => {
+    const parsed = parseRequest(request.request);
+    return {
+      name: request.name || "Not provided",
+      phone: request.phone || "Not provided",
+      category: parsed.category || "Uncategorized",
+      urgency: parsed.urgency || "Unspecified",
+      status: request.isArchived ? "Archived" : request.isRead ? "Prayed Over" : "Awaiting Prayer",
+      submittedAt: formatReportDate(request.createdAt, true),
+      archivedAt: request.isArchived ? formatReportDate(request.archivedAt || request.updatedAt, true) : "—",
+      request: parsed.body || request.request || "Not provided",
+    };
+  });
+
+  const getReportFilters = () => ({
+    Status: filter === "unread" ? "Awaiting Prayer" : filter === "read" ? "Prayed Over" : filter === "archived" ? "Archived" : "All active statuses",
+    Category: categoryFilter === "all" ? "All categories" : categoryFilter,
+    Urgency: urgencyFilter === "all" ? "All urgency levels" : urgencyFilter,
+  });
+
+  const getReportSummary = (rows) => ({
+    "Filtered requests": rows.length,
+    "Awaiting prayer": rows.filter((request) => request.status === "Awaiting Prayer").length,
+    "Prayed over": rows.filter((request) => request.status === "Prayed Over").length,
+    Archived: rows.filter((request) => request.status === "Archived").length,
+    "Urgent requests": rows.filter((request) => request.urgency.toLowerCase().includes("urgent")).length,
+  });
+
+  const downloadPrayerCsv = () => {
+    const rows = getReportRows();
+    if (rows.length === 0) {
+      alert("No prayer requests match the current filters.");
+      return;
+    }
+
+    downloadCsvReport({
+      title: "CONFIDENTIAL - Prayer Requests Register",
+      filters: getReportFilters(),
+      headers: ["Submitted", "Archived", "Name", "Phone", "Category", "Urgency", "Status", "Prayer Request"],
+      rows: rows.map((request) => [
+        request.submittedAt,
+        request.archivedAt,
+        request.name,
+        request.phone,
+        request.category,
+        request.urgency,
+        request.status,
+        request.request,
+      ]),
+      summary: getReportSummary(rows),
+    });
+  };
+
+  const downloadPrayerWord = () => {
+    const rows = getReportRows();
+    if (rows.length === 0) {
+      alert("No prayer requests match the current filters.");
+      return;
+    }
+
+    downloadWordReport({
+      title: "CONFIDENTIAL - Prayer Requests Register",
+      subtitle: "Restricted pastoral-care information. For authorized ministry use only; handle with discretion.",
+      filters: getReportFilters(),
+      summary: getReportSummary(rows),
+      columns: [
+        { label: "Submitted", value: "submittedAt" },
+        { label: "Archived", value: "archivedAt" },
+        { label: "Name", value: "name" },
+        { label: "Phone", value: "phone" },
+        { label: "Category", value: "category" },
+        { label: "Urgency", value: "urgency" },
+        { label: "Status", value: "status" },
+        { label: "Prayer Request", value: "request" },
+      ],
+      rows,
+    });
+  };
+
+  const downloadPrayerPdf = () => {
+    const rows = getReportRows();
+    if (rows.length === 0) {
+      alert("No prayer requests match the current filters.");
+      return;
+    }
+
+    downloadPdfReport({
+      title: "CONFIDENTIAL - Prayer Requests Register",
+      subtitle: "Restricted pastoral-care information. For authorized ministry use only; handle with discretion.",
+      filters: getReportFilters(),
+      summary: getReportSummary(rows),
+      columns: [
+        { label: "Submitted", value: "submittedAt" },
+        { label: "Archived", value: "archivedAt" },
+        { label: "Name", value: "name" },
+        { label: "Phone", value: "phone" },
+        { label: "Category", value: "category" },
+        { label: "Urgency", value: "urgency" },
+        { label: "Status", value: "status" },
+        { label: "Prayer Request", value: "request", width: 2.5 },
+      ],
+      rows,
+    });
+  };
 
   return (
     <div style={{
@@ -148,13 +316,20 @@ function AdminPrayerRequests() {
       </header>
 
       <main style={{ padding: "32px 40px", maxWidth: "1000px", margin: "0 auto" }}>
+        {error && (
+          <div role="alert" style={{ marginBottom: "20px", padding: "13px 15px", borderRadius: "12px", background: "rgba(239,68,68,0.12)", border: "1px solid rgba(248,113,113,0.24)", color: "#fecaca", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+            <span>{error}</span>
+            <button type="button" onClick={fetchPrayerRequests} style={{ padding: "7px 12px", borderRadius: "8px", border: "1px solid rgba(125,211,252,0.2)", background: "rgba(14,165,233,0.1)", color: "#bae6fd", cursor: "pointer", fontWeight: 700 }}>Retry</button>
+          </div>
+        )}
 
         {/* Stats row */}
         <div style={{ display: "flex", gap: "16px", marginBottom: "28px", flexWrap: "wrap" }}>
           {[
-            { label: "Total Requests", value: prayerRequests.length, color: "#38bdf8", icon: "📋" },
+            { label: "Active Requests", value: activeRequests.length, color: "#38bdf8", icon: "📋" },
             { label: "Awaiting Prayer", value: unreadCount, color: "#f59e0b", icon: "🔔" },
             { label: "Prayed Over", value: readCount, color: "#4ade80", icon: "✅" },
+            { label: "Archived", value: archivedCount, color: "#94a3b8", icon: "🗄️" },
           ].map((stat) => (
             <div key={stat.label} style={{
               flex: "1 1 150px",
@@ -185,9 +360,10 @@ function AdminPrayerRequests() {
         {/* Filter tabs */}
         <div style={{ display: "flex", gap: "10px", marginBottom: "24px", flexWrap: "wrap" }} className="no-print">
           {[
-            { key: "all", label: `All Requests`, count: prayerRequests.length },
+            { key: "all", label: `All Active`, count: activeRequests.length },
             { key: "unread", label: `Unread`, count: unreadCount },
             { key: "read", label: `Prayed Over`, count: readCount },
+            { key: "archived", label: `Archived`, count: archivedCount },
           ].map((tab) => (
             <button
               key={tab.key}
@@ -307,6 +483,91 @@ function AdminPrayerRequests() {
           )}
         </div>
 
+        {/* Confidential report actions */}
+        <div
+          className="no-print"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "14px",
+            flexWrap: "wrap",
+            marginBottom: "24px",
+            padding: "14px 16px",
+            border: "1px solid rgba(245,158,11,0.18)",
+            borderRadius: "14px",
+            background: "rgba(245,158,11,0.05)",
+          }}
+        >
+          <div>
+            <strong style={{ display: "block", color: "#fbbf24", fontSize: "0.82rem" }}>
+              Confidential pastoral-care exports
+            </strong>
+            <span style={{ color: "#64748b", fontSize: "0.75rem" }}>
+              Reports include only the currently filtered requests and information visible in this panel.
+            </span>
+          </div>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={downloadPrayerPdf}
+              disabled={filteredRequests.length === 0}
+              title="Download the filtered confidential register as PDF"
+              style={{
+                padding: "9px 16px",
+                border: "none",
+                borderRadius: "9px",
+                background: "linear-gradient(135deg, #be123c, #e11d48)",
+                color: "#fff",
+                cursor: filteredRequests.length === 0 ? "not-allowed" : "pointer",
+                opacity: filteredRequests.length === 0 ? 0.5 : 1,
+                fontSize: "0.8rem",
+                fontWeight: 700,
+              }}
+            >
+              Export PDF
+            </button>
+            <button
+              type="button"
+              onClick={downloadPrayerCsv}
+              disabled={filteredRequests.length === 0}
+              title="Download the filtered confidential register as CSV"
+              style={{
+                padding: "9px 16px",
+                border: "none",
+                borderRadius: "9px",
+                background: "linear-gradient(135deg, #059669, #10b981)",
+                color: "#fff",
+                cursor: filteredRequests.length === 0 ? "not-allowed" : "pointer",
+                opacity: filteredRequests.length === 0 ? 0.5 : 1,
+                fontSize: "0.8rem",
+                fontWeight: 700,
+              }}
+            >
+              Export CSV
+            </button>
+            <button
+              type="button"
+              onClick={downloadPrayerWord}
+              disabled={filteredRequests.length === 0}
+              title="Download the filtered confidential register as a Word-compatible document"
+              style={{
+                padding: "9px 16px",
+                border: "none",
+                borderRadius: "9px",
+                background: "linear-gradient(135deg, #0369a1, #0ea5e9)",
+                color: "#fff",
+                cursor: filteredRequests.length === 0 ? "not-allowed" : "pointer",
+                opacity: filteredRequests.length === 0 ? 0.5 : 1,
+                fontSize: "0.8rem",
+                fontWeight: 700,
+              }}
+            >
+              Export Word
+            </button>
+          </div>
+        </div>
+
         {/* Section heading */}
         <div style={{
           display: "flex", alignItems: "center", gap: "10px",
@@ -314,7 +575,7 @@ function AdminPrayerRequests() {
           borderLeft: "4px solid #0ea5e9", paddingLeft: "12px",
         }}>
           <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "#38bdf8" }}>
-            {filter === "all" ? "All Prayer Requests" : filter === "unread" ? "Unread — Awaiting Prayer" : "Prayed Over"}
+            {filter === "all" ? "All Active Prayer Requests" : filter === "unread" ? "Unread — Awaiting Prayer" : filter === "read" ? "Prayed Over" : "Archived Prayer Requests"}
           </h3>
           <span style={{
             background: "linear-gradient(90deg, #0369a1, #0ea5e9)",
@@ -326,7 +587,9 @@ function AdminPrayerRequests() {
         </div>
 
         {/* Prayer request cards */}
-        {filteredRequests.length === 0 ? (
+        {loading ? (
+          <div role="status" style={{ textAlign: "center", padding: "60px 0", color: "#94a3b8" }}>Loading pastoral-care requests…</div>
+        ) : filteredRequests.length === 0 ? (
           <div style={{
             textAlign: "center", padding: "60px 0",
             background: "rgba(30,41,59,0.4)",
@@ -349,7 +612,7 @@ function AdminPrayerRequests() {
                   key={pr._id}
                   className="pr-card"
                   style={{
-                    background: pr.isRead
+                    background: pr.isRead || pr.isArchived
                       ? "rgba(15,23,42,0.5)"
                       : "rgba(30,41,59,0.75)",
                     backdropFilter: "blur(14px)",
@@ -361,11 +624,13 @@ function AdminPrayerRequests() {
                     borderLeft: `4px solid ${pr.isRead ? "#334155" : isUrgent ? "#f59e0b" : "#0ea5e9"}`,
                     borderRadius: "18px",
                     overflow: "hidden",
-                    opacity: pr.isRead ? 0.7 : 1,
+                    opacity: pr.isArchived ? 0.62 : pr.isRead ? 0.7 : 1,
                   }}
                 >
                   {/* Card Header */}
-                  <div
+                  <button
+                    type="button"
+                    aria-expanded={isExpanded}
                     onClick={() => setExpandedId(isExpanded ? null : pr._id)}
                     style={{
                       padding: "18px 24px",
@@ -373,6 +638,11 @@ function AdminPrayerRequests() {
                       display: "flex", alignItems: "center",
                       justifyContent: "space-between", gap: "12px",
                       flexWrap: "wrap",
+                      width: "100%",
+                      border: "none",
+                      background: "transparent",
+                      color: "inherit",
+                      textAlign: "left",
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: "14px", flex: 1, minWidth: 0 }}>
@@ -453,7 +723,7 @@ function AdminPrayerRequests() {
                       transition: "transform 0.2s",
                       flexShrink: 0,
                     }}>▼</span>
-                  </div>
+                  </button>
 
                   {/* Expandable body */}
                   {isExpanded && (
@@ -481,7 +751,7 @@ function AdminPrayerRequests() {
                       </div>
 
                       {/* Pastoral note */}
-                      {!pr.isRead && (
+                      {!pr.isRead && !pr.isArchived && (
                         <div style={{
                           background: "rgba(14,165,233,0.05)",
                           border: "1px solid rgba(14,165,233,0.12)",
@@ -499,42 +769,66 @@ function AdminPrayerRequests() {
 
                       {/* Action buttons */}
                       <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                        <button
-                          className="action-btn"
-                          onClick={(e) => { e.stopPropagation(); toggleReadStatus(pr._id, pr.isRead); }}
-                          style={{
-                            padding: "9px 18px",
-                            borderRadius: "10px",
-                            cursor: "pointer",
-                            fontSize: "0.82rem",
-                            fontWeight: 700,
-                            background: pr.isRead
-                              ? "rgba(100,116,139,0.15)"
-                              : "linear-gradient(135deg, #0369a1, #0ea5e9)",
-                            color: pr.isRead ? "#64748b" : "#fff",
-                            boxShadow: pr.isRead ? "none" : "0 4px 12px rgba(14,165,233,0.3)",
-                            border: pr.isRead ? "1px solid rgba(100,116,139,0.25)" : "none",
-                          }}
-                        >
-                          {pr.isRead ? "↩ Mark as Unread" : "✓ Mark as Prayed Over"}
-                        </button>
+                        {pr.isArchived ? (
+                          <button
+                            className="action-btn"
+                            disabled={busyId === pr._id}
+                            onClick={(e) => { e.stopPropagation(); restorePrayerRequest(pr._id); }}
+                            style={{
+                              padding: "9px 18px",
+                              borderRadius: "10px",
+                              border: "1px solid rgba(74,222,128,0.25)",
+                              cursor: busyId === pr._id ? "wait" : "pointer",
+                              fontSize: "0.82rem",
+                              fontWeight: 700,
+                              background: "rgba(34,197,94,0.1)",
+                              color: "#86efac",
+                            }}
+                          >
+                            {busyId === pr._id ? "Restoring…" : "Restore Request"}
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              className="action-btn"
+                              disabled={busyId === pr._id}
+                              onClick={(e) => { e.stopPropagation(); toggleReadStatus(pr._id, pr.isRead); }}
+                              style={{
+                                padding: "9px 18px",
+                                borderRadius: "10px",
+                                cursor: busyId === pr._id ? "wait" : "pointer",
+                                fontSize: "0.82rem",
+                                fontWeight: 700,
+                                background: pr.isRead
+                                  ? "rgba(100,116,139,0.15)"
+                                  : "linear-gradient(135deg, #0369a1, #0ea5e9)",
+                                color: pr.isRead ? "#64748b" : "#fff",
+                                boxShadow: pr.isRead ? "none" : "0 4px 12px rgba(14,165,233,0.3)",
+                                border: pr.isRead ? "1px solid rgba(100,116,139,0.25)" : "none",
+                              }}
+                            >
+                              {busyId === pr._id ? "Saving…" : pr.isRead ? "↩ Mark as Unread" : "✓ Mark as Prayed Over"}
+                            </button>
 
-                        <button
-                          className="action-btn"
-                          onClick={(e) => { e.stopPropagation(); deletePrayerRequest(pr._id); }}
-                          style={{
-                            padding: "9px 18px",
-                            borderRadius: "10px",
-                            border: "1px solid rgba(239,68,68,0.25)",
-                            cursor: "pointer",
-                            fontSize: "0.82rem",
-                            fontWeight: 700,
-                            background: "rgba(239,68,68,0.1)",
-                            color: "#f87171",
-                          }}
-                        >
-                          🗑 Delete Request
-                        </button>
+                            <button
+                              className="action-btn"
+                              disabled={busyId === pr._id}
+                              onClick={(e) => { e.stopPropagation(); archivePrayerRequest(pr._id); }}
+                              style={{
+                                padding: "9px 18px",
+                                borderRadius: "10px",
+                                border: "1px solid rgba(245,158,11,0.25)",
+                                cursor: busyId === pr._id ? "wait" : "pointer",
+                                fontSize: "0.82rem",
+                                fontWeight: 700,
+                                background: "rgba(245,158,11,0.1)",
+                                color: "#fbbf24",
+                              }}
+                            >
+                              {busyId === pr._id ? "Archiving…" : "Archive Request"}
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   )}

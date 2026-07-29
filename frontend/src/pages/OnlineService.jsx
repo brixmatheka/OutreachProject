@@ -46,7 +46,7 @@ function OnlineService() {
       <div style={{ width: "100%", maxWidth: "1080px", zIndex: 1, display: "flex", flexDirection: "column", gap: "28px" }}>
         
         {/* Modern Header */}
-        <header style={{
+        <header className="online-service-header" style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
@@ -94,7 +94,7 @@ function OnlineService() {
         </header>
 
         {/* 2-Column Screen & Direct Action Layout */}
-        <div style={{
+        <div className="online-service-layout" style={{
           display: "grid",
           gridTemplateColumns: "1.8fr 1fr",
           gap: "24px",

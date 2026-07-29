@@ -16,6 +16,7 @@ export const ADMIN_ROLE_LABELS = Object.freeze({
 
 export const ADMIN_SECTION_ROLES = Object.freeze({
   dashboard: Object.values(ADMIN_ROLES),
+  reports: [ADMIN_ROLES.SUPER_ADMIN],
   events: [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.EVENTS_ADMIN],
   projects: [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.CONTENT_ADMIN],
   prayerRequests: [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.CONTENT_ADMIN],

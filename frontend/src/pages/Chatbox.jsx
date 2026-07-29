@@ -1,5 +1,160 @@
 import { useState, useRef, useEffect } from "react"
 import CloseButton from "../components/CloseButton"
+import axios from "axios"
+import { Link } from "react-router-dom"
+
+const churchKnowledge = [
+  {
+    id: "welcome",
+    keywords: ["hello", "hi","mambo" ,"sasa","hey", "good morning", "good afternoon", "good evening", "mambo"],
+    answer: "Hello! Welcome to Outreach Hope Church Sunshine — the House of Bread. I can help with our beliefs, services, events, sermons, prayer, baptism, giving, ministries, careers, membership, or contact details."
+  },
+  {
+    id: "identity",
+    keywords: ["about the church", "who are you", "what is ohc", "house of bread", "church history", "about ohc"],
+    answer: "Outreach Hope Church Sunshine (OHC), also known as the House of Bread, is a Christ-centered community. The church has more than 15 years of ministry, has served 500+ families, and highlights more than 50 community projects.",
+    path: "/about"
+  },
+  {
+    id: "mission",
+    keywords: ["mission", "purpose", "why does the church exist"],
+    answer: "Our mission is to proclaim the Gospel of Jesus Christ in word and deed, nurturing believers toward maturity through biblical teaching, authentic fellowship, sacrificial service, and intentional community engagement.",
+    path: "/about"
+  },
+  {
+    id: "vision",
+    keywords: ["vision", "future of the church"],
+    answer: "Our vision is to be a Christ-centered community that raises mature disciples, plants thriving churches, and transforms communities through the Gospel, presenting everyone mature in Christ.",
+    path: "/about"
+  },
+  {
+    id: "goal",
+    keywords: ["five year goal", "5 year goal", "growth goal", "plant churches", "500 members"],
+    answer: "OHC's five-year goal is to grow from 150 to 500 members and plant 10 churches across Machakos and other parts of the world.",
+    path: "/about"
+  },
+  {
+    id: "values",
+    keywords: ["core values", "values", "what do you value"],
+    answer: "Our core values are the supremacy of Scripture, dependence on God through prayer, discipleship and spiritual maturity, authentic fellowship, Gospel proclamation, sacrificial service and compassion, investment in marriage and family, and Kingdom collaboration.",
+    path: "/about"
+  },
+  {
+    id: "beliefs",
+    keywords: ["belief", "believe", "doctrine", "faith", "scripture"],
+    answer: "OHC is centered on Scripture, prayer, the Gospel of Jesus Christ, discipleship, fellowship, compassion, family, and Kingdom collaboration. The About page explains the church's mission, vision, values, and supporting Bible passages.",
+    path: "/about"
+  },
+  {
+    id: "services",
+    keywords: ["service time", "service times", "weekly service", "sunday service", "when is service", "bible study time", "morning glory"],
+    answer: "Weekly services include Morning Glory from 7:00–8:00 AM, Bible Study from 8:00–10:00 AM, and the Main Service from 10:00 AM–12:30 PM. The online schedule also lists Wednesday Study from 6:30–8:00 PM.",
+    path: "/services"
+  },
+  {
+    id: "online",
+    keywords: ["online service", "live stream", "watch online", "youtube", "zoom", "facebook live"],
+    answer: "You can join the Online Sanctuary for the Sunday worship stream, Zoom fellowship, and Facebook Live. The weekly online schedule lists Sunday 10:00 AM–12:30 PM and Wednesday Study 6:30–8:00 PM.",
+    path: "/online-service"
+  },
+  {
+    id: "location",
+    keywords: ["location", "where is the church", "address", "directions", "map", "visit"],
+    answer: "Outreach Hope Church Sunshine serves the Sunshine/Joska area in Machakos. The About page includes an embedded map to help you navigate to the church.",
+    path: "/about"
+  },
+  {
+    id: "contact",
+    keywords: ["contact", "phone number", "call church", "email address", "reach church", "website"],
+    answer: "Call OHC on +254 722 539 649, email outreachhopechurch.sunshine@gmail.com, or visit outreachhopechurch.org.",
+    path: "/about"
+  },
+  {
+    id: "prayer",
+    keywords: ["prayer request", "pray for me", "need prayer", "prayer"],
+    answer: "We would be honored to pray with you. Signed-in members can submit a prayer request through the Prayer Requests page for the church prayer team.",
+    path: "/prayerRequests"
+  },
+  {
+    id: "baptism",
+    keywords: ["baptism", "baptize", "baptised", "baptized", "water baptism"],
+    answer: "Members aged 10 and above can request water baptism. Preferred dates must be upcoming Saturdays or Sundays, and you can track the request and download a baptism card when completed.",
+    path: "/baptism"
+  },
+  {
+    id: "giving",
+    keywords: ["give", "giving", "donate", "tithe", "offering", "m-pesa", "mpesa", "stk", "building fund", "missions fund"],
+    answer: "The Give page supports secure M-Pesa STK giving. Available categories include Offering, Tithe, Missions Fund, Building Fund, and Others.",
+    path: "/give"
+  },
+  {
+    id: "membership",
+    keywords: ["sign up", "signup", "register", "membership", "become a member", "member account"],
+    answer: "Use Sign Up to create a member account. Members can access services and sermons, submit prayer and baptism requests, give, register for events, and manage their Profile & Settings.",
+    path: "/signup"
+  },
+  {
+    id: "profile",
+    keywords: ["profile", "settings", "change password", "dark mode", "light mode", "residence"],
+    answer: "Profile & Settings lets members update personal details and residence, change passwords, choose Light, Dark, or System mode, adjust text size and motion, and manage update preferences.",
+    path: "/profile"
+  },
+  {
+    id: "events",
+    keywords: ["event", "events", "calendar", "upcoming activity", "register for event"],
+    answer: "The Events page lists upcoming and past church activities, with dates, locations, descriptions, banners, and attendance registration.",
+    path: "/events"
+  },
+  {
+    id: "sermons",
+    keywords: ["sermon", "sermons", "preaching", "teaching notes", "download sermon"],
+    answer: "The Sermon Library contains searchable teaching notes with scripture, preacher, category, PDF and Word downloads, bookmarks, and related sermons.",
+    path: "/sermons"
+  },
+  {
+    id: "bible",
+    keywords: ["bible", "read scripture", "read the bible"],
+    answer: "Use the Bible page to read Scripture as part of your study and reflection.",
+    path: "/bible"
+  },
+  {
+    id: "gallery",
+    keywords: ["gallery", "photos", "pictures", "videos", "media"],
+    answer: "The Gallery contains folders of photos and videos from church services, outreach, events, and community life. Images can also be opened and downloaded.",
+    path: "/gallery"
+  },
+  {
+    id: "careers",
+    keywords: ["career", "careers", "opportunity", "opportunities", "job", "internship", "volunteer", "advertise", "share idea", "business idea"],
+    answer: "The Careers & Ideas Hub lets members share ministry projects, professional skills, businesses, services, and community ideas. The separate Opportunities page is for roles, internships, volunteering, advertisements, and external opportunity links.",
+    path: "/careers"
+  },
+  {
+    id: "ministers",
+    keywords: ["minister", "ministers", "pastor", "leadership", "church leaders"],
+    answer: "The Ministers page introduces OHC's ministry team and the areas they serve, including family, discipleship, fellowship, and spiritual maturity.",
+    path: "/ministers"
+  }
+]
+
+function findKnowledgeAnswer(message) {
+  const normalized = String(message || "").toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, " ")
+  let bestMatch = null
+  let bestScore = 0
+
+  churchKnowledge.forEach((entry) => {
+    const score = entry.keywords.reduce((total, keyword) => {
+      if (!normalized.includes(keyword)) return total
+      return total + keyword.split(/\s+/).length * 3 + keyword.length / 20
+    }, 0)
+    if (score > bestScore) {
+      bestScore = score
+      bestMatch = entry
+    }
+  })
+
+  return bestMatch
+}
 
 function Chatbox() {
   const [messages, setMessages] = useState([
@@ -7,6 +162,7 @@ function Chatbox() {
   ])
   const [input, setInput] = useState("")
   const [isTyping, setIsTyping] = useState(false)
+  const [liveInfo, setLiveInfo] = useState({ events: [], sermons: [] })
   const messagesEndRef = useRef(null)
 
   const scrollToBottom = () => {
@@ -17,84 +173,47 @@ function Chatbox() {
     scrollToBottom()
   }, [messages, isTyping])
 
-  const faqDatabase = [{
-    keywords: ["hello", "hey", "how are you", "whats up", "mambo", "good morning", "good afternoon", "good evening", "how are you doing", "how are you", "how is", "how's"],
-    answer: "hey am fine..how can i help you"
-  },
-  {
-    keywords: ["time", "service", "when", "hours", "sunday"],
-    answer: "Our Sunday services are held at 9:00 AM and 11:00 AM. We also have a Wednesday evening Bible study at 7:00 PM."
-  },
-  {
-    keywords: ["location", "where", "address", "directions", "map"],
-    answer: "We are located at Sunshine Place,off JOSKA, Nairobi. You can find full directions on our About page!"
-  },
-  {
-    keywords: ["pastor", "pastors", "number", "call pastor", "pastor number"],
-    answer: "You can reach Rev Clinton OKANGA at 0759162559 for urgent pastoral care. For general inquiries, call the church office at (555) 123-4567."
-  },
-  {
-    keywords: ["give", "donate", "tithe", "offering", "pay"],
-    answer: "You can easily give online through our Give page using card or mobile money, or in person during any of our services."
-  },
-  {
-    keywords: ["contact", "phone", "email", "reach", "office"],
-    answer: "You can reach our church office at 0759162559 or email us at hello@outreachhope.org. Our office hours are Monday-Friday, 9 AM - 4 PM."
-  },
-  {
-    keywords: ["prayer", "pray", "request"],
-    answer: "We would love to pray for you. Please visit our Prayer Requests page to submit your request, and our intercessory team will keep you in prayer."
-  },
-  {
-    keywords: ["event", "calendar", "upcoming", "activities"],
-    answer: "We have many exciting events coming up! Check out our Events page for the full calendar and to register for upcoming activities."
-  },
-  {
-    keywords: ["kids", "children", "youth", "childcare", "nursery"],
-    answer: "Yes! We have a vibrant Kids Ministry for ages newborn through 5th grade during all Sunday services, and a Youth Group that meets on Wednesday nights."
-  },
-  {
-    keywords: ["wear", "dress code", "clothes"],
-    answer: "Come as you are! There is no dress code. You'll see everything from jeans and t-shirts to suits and dresses."
-  },
-  {
-    keywords: ["baptism", "baptize", "baptised", "request baptism", "baptising"],
-    answer: "We celebrate holy baptism! You can request water baptism on our Baptism Request page. We hold scheduled baptisms on Saturdays and Sundays for members aged 10 and above."
-  },
-  {
-    keywords: ["sign up", "register", "signup", "create account", "membership", "member"],
-    answer: "You can register as an official member by clicking the 'Sign Up' button on the navigation bar. Registered members can auto-fill requests, track their giving history, download baptism cards, and register for church events easily!"
-  },
-  {
-    keywords: ["mpesa", "m-pesa", "paybill", "till", "stk"],
-    answer: "For convenient online giving, you can initiate a secure M-Pesa STK Push directly on our Give page by entering your phone number and donation category."
-  },
-  {
-    keywords: ["project", "projects", "building", "development", "church project"],
-    answer: "We are actively engaged in building and community development initiatives. Check out our Projects page to see what we're working on and how you can support."
-  },
-  {
-    keywords: ["believe", "beliefs", "doctrine", "vision", "mission"],
-    answer: "Outreach Hope Church is built on the Word of God. We believe in the Trinity, salvation through Jesus Christ, and sharing God's love with the community. You can read our full statement of faith on our About page!"
-  },
-  {
-    keywords: ["volunteer", "serve", "join team", "choir", "usher", "ministry"],
-    answer: "We would love to have you serve with us! You can volunteer in ushering, praise & worship, sound media, children ministry, or hospitality. Speak to any usher or pastor after service to join."
-  }
-  ]
+  useEffect(() => {
+    let active = true
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    Promise.allSettled([
+      axios.get("/events"),
+      axios.get("/api/sermons", { params: { page: 1, limit: 3, sort: "latest" } })
+    ]).then(([eventsResult, sermonsResult]) => {
+      if (!active) return
+      const events = eventsResult.status === "fulfilled"
+        ? (eventsResult.value.data || [])
+          .filter((event) => new Date(event.date) >= today)
+          .sort((a, b) => new Date(a.date) - new Date(b.date))
+        : []
+      const sermons = sermonsResult.status === "fulfilled"
+        ? sermonsResult.value.data.sermons || []
+        : []
+      setLiveInfo({ events, sermons })
+    })
+
+    return () => { active = false }
+  }, [])
 
   const getBotResponse = (userMessage) => {
     const lowerInput = userMessage.toLowerCase()
 
-    // Check FAQs
-    for (const faq of faqDatabase) {
-      if (faq.keywords.some(keyword => lowerInput.includes(keyword))) {
-        return faq.answer
-      }
+    if (/(next|upcoming|latest|recent).*(event|activity)|(event|activity).*(next|upcoming)/.test(lowerInput) && liveInfo.events.length) {
+      const event = liveInfo.events[0]
+      const date = new Date(event.date).toLocaleDateString("en-KE", { weekday: "long", month: "long", day: "numeric" })
+      return { text: `The next listed event is "${event.title}" on ${date}${event.location ? ` at ${event.location}` : ""}.`, path: "/events" }
     }
 
-    // Default response
-    return "Thank you for reaching out! I'm here to help with any inquiries."
+    if (/(latest|recent|new).*(sermon|teaching)|(sermon|teaching).*(latest|recent|new)/.test(lowerInput) && liveInfo.sermons.length) {
+      const sermon = liveInfo.sermons[0]
+      return { text: `The latest listed sermon is "${sermon.title}" by ${sermon.preacher}, based on ${sermon.scripture}.`, path: `/sermons/${sermon._id}` }
+    }
+
+    const match = findKnowledgeAnswer(userMessage)
+    if (match) return { text: match.answer, path: match.path }
+    return { text: "I don't have a verified answer for that yet. Try asking about OHC's mission, service times, events, sermons, prayer, baptism, giving, ministries, careers, membership, location, or contact details.", path: "/about" }
   }
 
   const handleSend = () => {
@@ -109,10 +228,11 @@ function Chatbox() {
 
     // Simulate network delay for realistic feel
     setTimeout(() => {
-      const botReply = { sender: "bot", text: getBotResponse(userText) }
+      const response = getBotResponse(userText)
+      const botReply = { sender: "bot", ...response }
       setMessages(prev => [...prev, botReply])
       setIsTyping(false)
-    }, 1000)
+    }, 450)
   }
 
   const handleKeyDown = (e) => {
@@ -122,7 +242,7 @@ function Chatbox() {
   }
 
   return (
-    <div style={{
+    <div className="chatbox-shell" style={{
       maxWidth: "450px",
       margin: "40px auto",
       backgroundColor: "#ffffff",
@@ -208,6 +328,22 @@ function Chatbox() {
               border: msg.sender === "bot" ? "1px solid #f1f5f9" : "none"
             }}>
               {msg.text}
+              {msg.path && (
+                <Link
+                  to={msg.path}
+                  style={{
+                    display: "block",
+                    width: "fit-content",
+                    marginTop: "9px",
+                    color: "#0284c7",
+                    fontWeight: 800,
+                    fontSize: "12px",
+                    textDecoration: "none"
+                  }}
+                >
+                  Open related page →
+                </Link>
+              )}
             </div>
           </div>
         ))}
@@ -237,6 +373,34 @@ function Chatbox() {
       </div>
 
       {/* Input Area */}
+      <div className="chat-suggestions" style={{
+        display: "flex",
+        gap: "7px",
+        overflowX: "auto",
+        padding: "10px 14px 0",
+        backgroundColor: "#ffffff"
+      }}>
+        {["Service times", "Next event", "Our mission", "Prayer request"].map((suggestion) => (
+          <button
+            key={suggestion}
+            type="button"
+            onClick={() => setInput(suggestion)}
+            style={{
+              border: "1px solid #bae6fd",
+              background: "#f0f9ff",
+              color: "#0369a1",
+              borderRadius: "999px",
+              padding: "7px 11px",
+              fontSize: "11px",
+              fontWeight: 700,
+              whiteSpace: "nowrap",
+              cursor: "pointer"
+            }}
+          >
+            {suggestion}
+          </button>
+        ))}
+      </div>
       <div style={{
         padding: "16px",
         backgroundColor: "#ffffff",
@@ -266,6 +430,8 @@ function Chatbox() {
           onBlur={(e) => { e.target.style.borderColor = "#e2e8f0"; e.target.style.boxShadow = "none"; e.target.style.backgroundColor = "#f8fafc"; }}
         />
         <button
+          type="button"
+          aria-label="Send message"
           onClick={handleSend}
           disabled={!input.trim()}
           style={{
@@ -307,6 +473,17 @@ function Chatbox() {
         div::-webkit-scrollbar-thumb {
           background-color: #cbd5e1;
           border-radius: 10px;
+        }
+
+        @media (max-width: 520px) {
+          .chatbox-shell {
+            width: 100% !important;
+            max-width: none !important;
+            height: 100dvh !important;
+            margin: 0 !important;
+            border-radius: 0 !important;
+            border: 0 !important;
+          }
         }
       `}</style>
     </div>

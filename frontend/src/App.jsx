@@ -3,6 +3,7 @@ import axios, { API_URL } from "./apiConfig" // Ensure axios is configured with 
 import './App.css'
 import { Routes, Route, Link, Navigate, useLocation, useNavigate } from "react-router-dom"
 import { canAccessAdminSection, clearAdminAuth, getAdminAuth, storeAdminAuth } from "./adminAccess"
+import AdminPortalNav from "./components/AdminPortalNav"
 
 const About = lazy(() => import("./pages/About"));
 const AdminBaptism = lazy(() => import("./pages/AdminBaptism"));
@@ -13,6 +14,7 @@ const AdminLogin = lazy(() => import("./pages/AdminLogin"));
 const AdminMembers = lazy(() => import("./pages/AdminMembers"));
 const AdminMinisters = lazy(() => import("./pages/AdminMinisters"));
 const AdminPrayerRequests = lazy(() => import("./pages/AdminPrayerRequests"));
+const AdminReports = lazy(() => import("./pages/AdminReports"));
 const AdminProjects = lazy(() => import("./pages/AdminProjects"));
 const AdminSermons = lazy(() => import("./pages/AdminSermons"));
 const AdminTransactions = lazy(() => import("./pages/AdminTransactions"));
@@ -24,6 +26,7 @@ const Events = lazy(() => import("./pages/Events"));
 const Gallery = lazy(() => import("./pages/Gallery"));
 const Give = lazy(() => import("./pages/Give"));
 const MemberLogin = lazy(() => import("./pages/MemberLogin"));
+const MemberProfile = lazy(() => import("./pages/MemberProfile"));
 const MemberSignup = lazy(() => import("./pages/MemberSignup"));
 const Ministers = lazy(() => import("./pages/Ministers"));
 const OnlineService = lazy(() => import("./pages/OnlineService"));
@@ -125,7 +128,12 @@ const AdminProtectedRoute = ({ section, children }) => {
   if (status === "checking") return null;
   if (status === "unauthenticated") return <Navigate to="/admin-login" replace state={{ from: location.pathname }} />;
   if (!allowed) return <Navigate to="/admin-dashboard" replace />;
-  return children;
+  return (
+    <div className="admin-portal-frame">
+      <AdminPortalNav />
+      <div className="admin-portal-content">{children}</div>
+    </div>
+  );
 };
 
 function App() {
@@ -146,8 +154,40 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const applyPreferences = (event) => {
+      let preferences = event?.detail;
+      if (!preferences) {
+        try {
+          preferences = JSON.parse(localStorage.getItem("memberPreferences") || "{}");
+        } catch {
+          preferences = {};
+        }
+      }
+      const root = document.documentElement;
+      root.dataset.memberTheme = preferences.theme || "dark";
+      root.dataset.memberTextSize = preferences.textSize || "comfortable";
+      root.dataset.reduceMotion = preferences.reducedMotion ? "true" : "false";
+    };
+    applyPreferences();
+    window.addEventListener("member-preferences-changed", applyPreferences);
+    return () => window.removeEventListener("member-preferences-changed", applyPreferences);
+  }, []);
+
+  useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, [location.pathname]);
+
+  useEffect(() => {
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setIsMobileMenuOpen(false);
+    };
+    document.body.classList.toggle("mobile-menu-open", isMobileMenuOpen);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.classList.remove("mobile-menu-open");
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isMobileMenuOpen]);
 
   useEffect(() => {
     axios.get("/auth/me")
@@ -167,17 +207,6 @@ function App() {
         setMemberName(null);
       });
   }, []);
-
-  const handleLogout = () => {
-    axios.post("/auth/logout").catch(() => { });
-    localStorage.removeItem("memberSession");
-    localStorage.removeItem("memberToken");
-    localStorage.removeItem("memberName");
-    localStorage.removeItem("memberLastName");
-    localStorage.removeItem("memberId");
-    setMemberName(null);
-    window.location.href = "/";
-  };
 
   const fileUrl = (url) => {
     if (!url) return "";
@@ -328,8 +357,8 @@ function App() {
             <div className="user-profile">
               <div className="user-info">
                 <span className="welcome-text">Hey <strong>{memberName}</strong></span>
+                <Link to="/profile" className="profile-link">Profile &amp; Settings</Link>
               </div>
-              <button onClick={handleLogout} className="logout-link">Logout</button>
             </div>
           ) : (
             <div className="auth-buttons">
@@ -383,14 +412,9 @@ function App() {
           <Link to="/baptism" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Baptism</Link>
           <Link to="/chatbot" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Chatbot</Link>
           <Link to="/online-service" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Online Service</Link>
+          {memberName && <Link to="/profile" className="nav-link mobile-profile-link" onClick={() => setIsMobileMenuOpen(false)}>Profile &amp; Settings</Link>}
         </div>
 
-        {/* Mobile Logout (bottom of menu) */}
-        {memberName && (
-          <div className="mobile-logout-wrapper">
-            <button onClick={handleLogout} className="mobile-logout-btn">Log Out</button>
-          </div>
-        )}
       </nav>
     </header>
   );
@@ -550,9 +574,11 @@ function App() {
       <Route path="/baptism" element={<MemberProtectedRoute><BaptismRequest /></MemberProtectedRoute>} />
       <Route path="/chatbot" element={<MemberProtectedRoute><Chatbox /></MemberProtectedRoute>} />
       <Route path="/online-service" element={<MemberProtectedRoute><OnlineService /></MemberProtectedRoute>} />
+      <Route path="/profile" element={<MemberProtectedRoute><MemberProfile /></MemberProtectedRoute>} />
 
       {/* Admin Pages */}
       <Route path="/admin-dashboard" element={<AdminProtectedRoute section="dashboard"><AdminDashboard /></AdminProtectedRoute>} />
+      <Route path="/admin/reports" element={<AdminProtectedRoute section="reports"><AdminReports /></AdminProtectedRoute>} />
       <Route path="/admin/events" element={<AdminProtectedRoute section="events"><AdminEvents /></AdminProtectedRoute>} />
       <Route path="/admin/projects" element={<AdminProtectedRoute section="projects"><AdminProjects /></AdminProtectedRoute>} />
       <Route path="/admin/prayer-requests" element={<AdminProtectedRoute section="prayerRequests"><AdminPrayerRequests /></AdminProtectedRoute>} />

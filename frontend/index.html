@@ -3,6 +3,18 @@
 
 <head>
   <meta charset="UTF-8" />
+  <script>
+    (() => {
+      try {
+        const preferences = JSON.parse(localStorage.getItem("memberPreferences") || "{}");
+        document.documentElement.dataset.memberTheme = preferences.theme || "dark";
+        document.documentElement.dataset.memberTextSize = preferences.textSize || "comfortable";
+        document.documentElement.dataset.reduceMotion = preferences.reducedMotion ? "true" : "false";
+      } catch {
+        document.documentElement.dataset.memberTheme = "dark";
+      }
+    })();
+  </script>
   <link rel="icon" type="image/png" href="/logo.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#020617" />

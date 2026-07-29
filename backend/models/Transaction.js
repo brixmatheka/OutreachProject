@@ -5,16 +5,21 @@ const transactionSchema = new mongoose.Schema({
   lastName: { type: String, default: "" },
   memberId: { type: String, default: "0000" },
   phone: { type: String, required: true },
-  amount: { type: Number, required: true },
+  amount: { type: Number, required: true, min: 1 },
   category: { type: String, required: true },
   merchantRequestId: { type: String, required: true },
   checkoutRequestId: { type: String, required: true },
-  status: { type: String, default: "Pending" }, // Pending, Completed, Failed
+  status: { type: String, enum: ["Pending", "Completed", "Failed"], default: "Pending", index: true },
   mpesaReceiptNumber: { type: String },
+  paidAt: { type: Date },
+  verifiedAt: { type: Date },
   resultCode: { type: Number },
   resultDesc: { type: String },
-  createdAt: { type: Date, default: Date.now }
-});
+}, { timestamps: true });
+
+transactionSchema.index({ category: 1, createdAt: -1 });
+transactionSchema.index({ checkoutRequestId: 1 });
+transactionSchema.index({ mpesaReceiptNumber: 1 }, { sparse: true });
 
 const Transaction = mongoose.model("Transaction", transactionSchema);
 export default Transaction;

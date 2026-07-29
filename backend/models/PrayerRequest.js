@@ -17,7 +17,20 @@ const prayerRequestSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  prayedAt: {
+    type: Date,
+  },
+  isArchived: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
+  archivedAt: {
+    type: Date,
+  },
 }, { timestamps: true });
+
+prayerRequestSchema.index({ isArchived: 1, isRead: 1, createdAt: -1 });
 
 const PrayerRequest = mongoose.model("PrayerRequest", prayerRequestSchema);
 

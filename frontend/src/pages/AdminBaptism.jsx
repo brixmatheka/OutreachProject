@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { jsPDF } from "jspdf";
+import { downloadCsvReport, downloadPdfReport, downloadWordReport, formatReportDate } from "../adminReports";
 
 const styles = {
   page: { fontFamily: "'Poppins', 'Segoe UI', sans-serif", background: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)", minHeight: "100vh", color: "#f8fafc" },
@@ -87,22 +88,31 @@ function AdminBaptism() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
   const navigate = useNavigate();
+  const filteredRequests = requests.filter((request) => {
+    if (Boolean(request.isArchived) !== showArchived) return false;
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return true;
+    return request.fullName?.toLowerCase().includes(query) ||
+      request.email?.toLowerCase().includes(query) ||
+      request.phone?.toLowerCase().includes(query) ||
+      request.status?.toLowerCase().includes(query);
+  });
+  const reportSearch = searchQuery.trim() || "All records";
+  const activeCount = requests.filter((request) => !request.isArchived).length;
+  const archivedCount = requests.length - activeCount;
 
   // Always read token fresh — never store stale value at mount time
-  const getToken = () => localStorage.getItem("adminToken") || localStorage.getItem("token");
+  const getToken = useCallback(
+    () => localStorage.getItem("adminToken") || localStorage.getItem("token"),
+    []
+  );
 
-  useEffect(() => {
-    if (!getToken()) {
-      navigate("/admin-login");
-    } else {
-      fetchRequests();
-    }
-  }, []);
-
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
+    setError("");
     try {
-      const res = await axios.get("/api/admin/baptism-requests", {
+      const res = await axios.get("/api/admin/baptism-requests?view=all", {
         headers: { Authorization: getToken() }
       });
       setRequests(res.data);
@@ -115,7 +125,15 @@ function AdminBaptism() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getToken, navigate]);
+
+  useEffect(() => {
+    if (!getToken()) {
+      navigate("/admin-login");
+    } else {
+      fetchRequests();
+    }
+  }, [fetchRequests, getToken, navigate]);
 
   const handleUpdateStatus = async (id, currentStatus) => {
     const nextStatus = currentStatus === "Pending" ? "Completed" : "Pending";
@@ -135,7 +153,7 @@ function AdminBaptism() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this baptism request?")) return;
+    if (!window.confirm("Archive this baptism request? Its historical record and completed baptism status will be preserved.")) return;
     const token = getToken();
     if (!token) {
       alert("Not authenticated. Please log in again.");
@@ -152,16 +170,59 @@ function AdminBaptism() {
         alert("Session expired. Please log in again.");
         navigate("/admin-login");
       } else {
-        alert("Error deleting request: " + (err.response?.data?.message || err.message));
+        alert("Error archiving request: " + (err.response?.data?.message || err.message));
       }
     }
   };
 
-  const downloadReport = () => {
-    if (!window.confirm("Are you sure you want to download the All Requests report?")) return;
+  const handleRestore = async (id) => {
+    try {
+      await axios.patch(`/api/admin/baptism-requests/${id}/restore`, {}, {
+        headers: { Authorization: getToken() }
+      });
+      fetchRequests();
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        navigate("/admin-login");
+      } else {
+        alert("Error restoring request: " + (err.response?.data?.message || err.message));
+      }
+    }
+  };
 
-    if (requests.length === 0) {
+  const buildBaptismRequestsDocument = () => ({
+    title: "Baptism Requests Register",
+    subtitle: "Candidate details, scheduling, and pastoral processing status",
+    filters: {
+      Search: reportSearch,
+      Records: showArchived ? "Archived" : "Active",
+    },
+    summary: {
+      "Total requests": filteredRequests.length,
+      Pending: filteredRequests.filter((request) => request.status === "Pending").length,
+      Completed: filteredRequests.filter((request) => request.status === "Completed").length,
+    },
+    columns: [
+      { label: "Candidate", value: "fullName" },
+      { label: "Age", value: (request) => request.age || "—" },
+      { label: "Date of birth", value: (request) => formatReportDate(request.dateOfBirth) },
+      { label: "Email", value: "email" },
+      { label: "Phone", value: "phone" },
+      { label: "Preferred date", value: (request) => formatReportDate(request.preferredDate) },
+      { label: "Status", value: "status" },
+      { label: "Submitted", value: (request) => formatReportDate(request.createdAt, true) },
+    ],
+    rows: filteredRequests,
+  });
+
+  const downloadReport = () => {
+    if (filteredRequests.length === 0) {
       alert("No baptism request data available for the report.");
+      return;
+    }
+
+    if (downloadWordReport) {
+      downloadWordReport(buildBaptismRequestsDocument());
       return;
     }
 
@@ -181,6 +242,7 @@ function AdminBaptism() {
         <h1>Outreach Hope Church</h1>
         <h2>Baptism Requests Report</h2>
         <p>Generated on: ${new Date().toLocaleString()}</p>
+        <p>Search: ${reportSearch}</p>
         <br/>
         <table>
           <thead>
@@ -195,7 +257,7 @@ function AdminBaptism() {
             </tr>
           </thead>
           <tbody>
-            ${requests.map(r => `
+            ${filteredRequests.map(r => `
               <tr>
                 <td>${r.fullName}</td>
                 <td>${r.age || "—"}</td>
@@ -224,11 +286,34 @@ function AdminBaptism() {
   };
 
   const downloadCompletedReport = () => {
-    if (!window.confirm("Are you sure you want to download the Baptized Members report?")) return;
-
-    const completedRequests = requests.filter(r => r.status === "Completed");
+    const completedRequests = filteredRequests.filter(r => r.status === "Completed");
     if (completedRequests.length === 0) {
       alert("No completed baptism requests available for the report.");
+      return;
+    }
+
+    if (downloadWordReport) {
+      downloadWordReport({
+        title: "Baptized Members Register",
+        subtitle: "Completed baptism record for ministry administration",
+        filters: {
+          Search: reportSearch,
+          Status: "Completed",
+          Records: showArchived ? "Archived" : "Active",
+        },
+        summary: {
+          "Baptized members": completedRequests.length,
+        },
+        columns: [
+          { label: "Full name", value: "fullName" },
+          { label: "Age", value: (request) => request.age || "—" },
+          { label: "Date of birth", value: (request) => formatReportDate(request.dateOfBirth) },
+          { label: "Email", value: "email" },
+          { label: "Phone", value: "phone" },
+          { label: "Baptism completed", value: (request) => formatReportDate(request.completedAt || request.updatedAt) },
+        ],
+        rows: completedRequests,
+      });
       return;
     }
 
@@ -248,6 +333,7 @@ function AdminBaptism() {
         <h1>Outreach Hope Church</h1>
         <h2>Baptized Members Report</h2>
         <p>Generated on: ${new Date().toLocaleString()}</p>
+        <p>Search: ${reportSearch}</p>
         <br/>
         <table>
           <thead>
@@ -268,7 +354,7 @@ function AdminBaptism() {
                 <td>${r.dateOfBirth ? new Date(r.dateOfBirth).toLocaleDateString() : "—"}</td>
                 <td>${r.email}</td>
                 <td>${r.phone}</td>
-                <td>${new Date(r.preferredDate).toLocaleDateString()}</td>
+                <td>${formatReportDate(r.completedAt || r.updatedAt)}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -289,15 +375,39 @@ function AdminBaptism() {
   };
 
   const downloadCSV = () => {
-    if (!window.confirm("Are you sure you want to download the Baptism Requests CSV report?")) return;
-
-    if (requests.length === 0) {
+    if (filteredRequests.length === 0) {
       alert("No request data available for the report.");
       return;
     }
 
+    if (downloadCsvReport) {
+      downloadCsvReport({
+        title: "Baptism Requests Register",
+        filters: {
+          Search: reportSearch,
+          Records: showArchived ? "Archived" : "Active",
+        },
+        headers: ["Full Name", "Age", "Date of Birth", "Email", "Phone", "Preferred Date", "Status", "Submitted"],
+        rows: filteredRequests.map((request) => [
+          request.fullName,
+          request.age || "",
+          formatReportDate(request.dateOfBirth),
+          request.email,
+          request.phone,
+          formatReportDate(request.preferredDate),
+          request.status,
+          formatReportDate(request.createdAt, true),
+        ]),
+        summary: {
+          "Total requests": filteredRequests.length,
+          Completed: filteredRequests.filter((request) => request.status === "Completed").length,
+        },
+      });
+      return;
+    }
+
     const headers = ["Full Name", "Age", "DOB", "Email", "Phone", "Preferred Date", "Status"];
-    const rows = requests.map(r => [
+    const rows = filteredRequests.map(r => [
       r.fullName,
       r.age || "—",
       r.dateOfBirth ? new Date(r.dateOfBirth).toLocaleDateString() : "—",
@@ -324,7 +434,11 @@ function AdminBaptism() {
   };
 
   const handlePrint = () => {
-    window.print();
+    if (filteredRequests.length === 0) {
+      alert("No baptism request data available for the PDF report.");
+      return;
+    }
+    downloadPdfReport(buildBaptismRequestsDocument());
   };
 
   const downloadCard = (req) => {
@@ -381,11 +495,15 @@ function AdminBaptism() {
     doc.text("declaring their faith in Jesus Christ as Lord and Savior.", 148.5, 132, { align: "center" });
 
     // Date
-    const formattedDate = new Date(req.preferredDate).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    const completionTimestamp = req.completedAt || req.updatedAt;
+    const completionDate = completionTimestamp ? new Date(completionTimestamp) : null;
+    const formattedDate = completionDate && !Number.isNaN(completionDate.getTime())
+      ? completionDate.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        })
+      : "Date unavailable";
     doc.setFont("times", "bold");
     doc.setFontSize(16);
     doc.setTextColor(15, 23, 42);
@@ -437,7 +555,7 @@ function AdminBaptism() {
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }} className="no-print">
           <h3 style={{ ...styles.sectionHeading, marginBottom: 0 }}>
-            Active Requests
+            {showArchived ? "Archived Requests" : "Active Requests"}
             <span style={{ 
               marginLeft: "10px",
               background: "linear-gradient(90deg,#0369a1,#0ea5e9)", 
@@ -447,15 +565,22 @@ function AdminBaptism() {
               fontSize: "0.75rem", 
               fontWeight: 700 
             }}>
-              {requests.length}
+              {showArchived ? archivedCount : activeCount}
             </span>
           </h3>
           
           <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              style={{ ...styles.downloadBtn, background: "rgba(71,85,105,0.8)" }}
+              onClick={() => setShowArchived((value) => !value)}
+            >
+              {showArchived ? `View Active (${activeCount})` : `View Archive (${archivedCount})`}
+            </button>
             <button style={{ ...styles.downloadBtn, background: "linear-gradient(90deg, #10b981, #059669)" }} onClick={downloadCSV}>📊 CSV</button>
             <button style={styles.downloadBtn} onClick={downloadReport}>📄 All Requests Doc</button>
             <button style={{ ...styles.downloadBtn, background: "linear-gradient(90deg, #8b5cf6, #7c3aed)" }} onClick={downloadCompletedReport}>🎓 Baptized Members Doc</button>
-            <button style={{ ...styles.downloadBtn, background: "linear-gradient(90deg, #475569, #64748b)" }} onClick={handlePrint}>🖨️ Print PDF</button>
+            <button style={{ ...styles.downloadBtn, background: "linear-gradient(90deg, #be123c, #e11d48)" }} onClick={handlePrint}>PDF Report</button>
           </div>
         </div>
 
@@ -480,7 +605,7 @@ function AdminBaptism() {
             }}
           />
           <datalist id="baptism-names">
-            {requests.map(r => <option key={r._id} value={r.fullName} />)}
+            {requests.filter((request) => Boolean(request.isArchived) === showArchived).map(r => <option key={r._id} value={r.fullName} />)}
           </datalist>
         </div>
 
@@ -490,8 +615,8 @@ function AdminBaptism() {
           <div style={{ color: "#ef4444", textAlign: "center" }}>{error}</div>
         ) : (
           <div style={styles.tableContainer} className="table-container">
-            {requests.length === 0 ? (
-              <div style={styles.emptyState}>No baptism requests submitted yet.</div>
+            {filteredRequests.length === 0 ? (
+              <div style={styles.emptyState}>No {showArchived ? "archived" : "active"} baptism requests match the current search.</div>
             ) : (
               <table style={styles.table}>
                 <thead>
@@ -506,10 +631,7 @@ function AdminBaptism() {
                   </tr>
                 </thead>
                 <tbody>
-                  {requests.filter(req => 
-                    req.fullName.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                    req.email.toLowerCase().includes(searchQuery.toLowerCase())
-                  ).map((req) => (
+                  {filteredRequests.map((req) => (
                     <tr key={req._id}>
                       <td style={styles.td}>{req.fullName}</td>
                       <td style={styles.td}>
@@ -525,31 +647,49 @@ function AdminBaptism() {
                         <span style={styles.statusBadge(req.status)}>{req.status}</span>
                       </td>
                       <td style={styles.td} className="no-print">
-                        <button 
-                          style={styles.actionBtn} 
-                          onClick={() => handleUpdateStatus(req._id, req.status)}
-                        >
-                          {req.status === "Pending" ? "Complete" : "Set Pending"}
-                        </button>
-                        {req.status === "Completed" && (
-                          <button
-                            style={{ 
-                              ...styles.actionBtn, 
-                              background: "rgba(16, 185, 129, 0.1)", 
-                              color: "#34d399", 
-                              borderColor: "rgba(16, 185, 129, 0.2)" 
-                            }}
-                            onClick={() => downloadCard(req)}
-                          >
-                            Download Card
-                          </button>
+                        {req.isArchived ? (
+                          <>
+                            <button
+                              style={{ ...styles.actionBtn, background: "rgba(16,185,129,0.1)", color: "#86efac", borderColor: "rgba(16,185,129,0.25)" }}
+                              onClick={() => handleRestore(req._id)}
+                            >
+                              Restore
+                            </button>
+                            {req.status === "Completed" && (
+                              <button style={styles.actionBtn} onClick={() => downloadCard(req)}>
+                                Download Card
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              style={styles.actionBtn}
+                              onClick={() => handleUpdateStatus(req._id, req.status)}
+                            >
+                              {req.status === "Pending" ? "Complete" : "Set Pending"}
+                            </button>
+                            {req.status === "Completed" && (
+                              <button
+                                style={{
+                                  ...styles.actionBtn,
+                                  background: "rgba(16, 185, 129, 0.1)",
+                                  color: "#34d399",
+                                  borderColor: "rgba(16, 185, 129, 0.2)"
+                                }}
+                                onClick={() => downloadCard(req)}
+                              >
+                                Download Card
+                              </button>
+                            )}
+                            <button
+                              style={styles.deleteBtn}
+                              onClick={() => handleDelete(req._id)}
+                            >
+                              Archive
+                            </button>
+                          </>
                         )}
-                        <button 
-                          style={styles.deleteBtn} 
-                          onClick={() => handleDelete(req._id)}
-                        >
-                          Delete
-                        </button>
                       </td>
                     </tr>
                   ))}
