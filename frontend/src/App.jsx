@@ -339,7 +339,7 @@ function App() {
   };
 
   const renderHeader = () => (
-    <header className={`app-header ${isScrolled ? 'scrolled' : ''}`}>
+    <header className={`app-header ${isScrolled ? 'scrolled' : ''} ${memberName ? 'member-signed-in' : ''}`}>
       <div className="header-top">
         <div className="brand">
           <Link to="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -367,6 +367,28 @@ function App() {
             </div>
           )}
         </div>
+
+        {memberName && (
+          <Link
+            to="/profile"
+            className="mobile-profile-shortcut"
+            aria-label="Open Profile and Settings"
+            title="Profile & Settings"
+            onClick={() => setIsMobileMenuOpen(false)}
+          >
+            <span aria-hidden="true">⚙</span>
+          </Link>
+        )}
+
+        {!memberName && (
+          <Link
+            to="/login"
+            className="mobile-login-shortcut"
+            onClick={() => setIsMobileMenuOpen(false)}
+          >
+            Login
+          </Link>
+        )}
 
         <button
           className="mobile-toggle"
@@ -399,6 +421,7 @@ function App() {
 
         {/* Navigation */}
         <div className="feature-nav">
+          {memberName && <Link to="/profile" className="nav-link mobile-profile-link" onClick={() => setIsMobileMenuOpen(false)}>⚙ Profile &amp; Settings</Link>}
           <Link to="/about" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>About</Link>
           <Link to="/services" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Services</Link>
           <Link to="/ministers" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Ministers</Link>
@@ -412,7 +435,6 @@ function App() {
           <Link to="/baptism" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Baptism</Link>
           <Link to="/chatbot" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Chatbot</Link>
           <Link to="/online-service" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Online Service</Link>
-          {memberName && <Link to="/profile" className="nav-link mobile-profile-link" onClick={() => setIsMobileMenuOpen(false)}>Profile &amp; Settings</Link>}
         </div>
 
       </nav>

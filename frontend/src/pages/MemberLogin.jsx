@@ -88,7 +88,7 @@ function MemberLogin() {
       }} />
 
       {/* Split layout */}
-      <div style={{
+      <div className="member-login-card" style={{
         position: "relative",
         display: "flex",
         maxWidth: "860px",
@@ -100,7 +100,7 @@ function MemberLogin() {
       }}>
 
         {/* Left panel — branding */}
-        <div style={{
+        <div className="login-left-panel" style={{
           flex: "1",
           background: "linear-gradient(160deg, rgba(14,165,233,0.15) 0%, rgba(56,189,248,0.08) 100%)",
           backdropFilter: "blur(20px)",
@@ -111,7 +111,7 @@ function MemberLogin() {
           justifyContent: "center",
           alignItems: "flex-start",
           gap: "20px",
-        }} className="login-left-panel">
+        }}>
           <img src="/logo.png" alt="Outreach Hope Church" style={{
             width: "64px",
             height: "64px",
@@ -162,7 +162,7 @@ function MemberLogin() {
         </div>
 
         {/* Right panel — form */}
-        <div style={{
+        <div className="member-login-form-panel" style={{
           flex: "1",
           background: "rgba(248,250,252,0.97)",
           backdropFilter: "blur(12px)",
@@ -369,6 +369,29 @@ function MemberLogin() {
         input::placeholder { color: #94a3b8; }
         @media (max-width: 640px) {
           .login-left-panel { display: none !important; }
+          .member-login-page {
+            width: 100%;
+            min-height: 100vh !important;
+            min-height: 100dvh !important;
+            padding: 0 !important;
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+            align-items: stretch !important;
+          }
+          .member-login-card {
+            width: 100% !important;
+            max-width: none !important;
+            min-height: 100vh;
+            min-height: 100dvh;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+          }
+          .member-login-form-panel {
+            width: 100%;
+            min-height: 100vh;
+            min-height: 100dvh;
+            padding: max(32px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom)) !important;
+          }
         }
       `}</style>
     </div>

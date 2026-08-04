@@ -368,6 +368,29 @@ const GlobalStyle = () => (
       box-shadow: 0 0 0 3px rgba(14,165,233,0.18) !important;
       background: rgba(30, 41, 59, 0.9) !important;
     }
+    .admin-settings-summary::-webkit-details-marker { display: none; }
+
+    @media (max-width: 520px) {
+      .admin-dashboard-header { flex-wrap: nowrap !important; padding: 10px 12px !important; }
+      .admin-dashboard-header-left { min-width: 0; gap: 8px !important; }
+      .admin-dashboard-title { font-size: 1rem !important; white-space: nowrap; }
+      .admin-dashboard-subtitle {
+        max-width: 150px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .admin-settings-summary {
+        min-width: 44px;
+        min-height: 44px;
+        padding: 9px 10px !important;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .admin-settings-label { display: none; }
+      .admin-settings-menu { width: min(220px, calc(100vw - 24px)) !important; right: 0 !important; }
+    }
   `}</style>
 );
 
@@ -468,20 +491,20 @@ function AdminDashboard() {
       <GlobalStyle />
 
       {/* ── Header ── */}
-      <header style={styles.header}>
-        <div style={styles.headerLeft}>
+      <header className="admin-dashboard-header" style={styles.header}>
+        <div className="admin-dashboard-header-left" style={styles.headerLeft}>
           <div style={styles.headerDot} />
           <div>
-            <h2 style={styles.headerTitle}> Outreach Admin</h2>
-            <p style={styles.headerSubtitle}>{roleLabel}</p>
+            <h2 className="admin-dashboard-title" style={styles.headerTitle}> Outreach Admin</h2>
+            <p className="admin-dashboard-subtitle" style={styles.headerSubtitle}>{roleLabel}</p>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <details style={{ position: "relative" }}>
-            <summary style={{ ...styles.logoutBtn, listStyle: "none", cursor: "pointer", userSelect: "none" }}>
-              ⚙ Settings
+            <summary className="admin-settings-summary" aria-label="Open settings" style={{ ...styles.logoutBtn, listStyle: "none", cursor: "pointer", userSelect: "none" }}>
+              <span aria-hidden="true">⚙</span><span className="admin-settings-label"> Settings</span>
             </summary>
-            <div style={{ position: "absolute", top: "calc(100% + 10px)", right: 0, width: "220px", padding: "12px", borderRadius: "12px", background: "#0f172a", border: "1px solid rgba(148,163,184,0.2)", boxShadow: "0 16px 40px rgba(0,0,0,0.4)", zIndex: 200 }}>
+            <div className="admin-settings-menu" style={{ position: "absolute", top: "calc(100% + 10px)", right: 0, width: "220px", padding: "12px", borderRadius: "12px", background: "#0f172a", border: "1px solid rgba(148,163,184,0.2)", boxShadow: "0 16px 40px rgba(0,0,0,0.4)", zIndex: 200 }}>
               <p style={{ margin: "0 0 10px", color: "#94a3b8", fontSize: "0.75rem" }}>Signed in as <strong style={{ color: "#e2e8f0" }}>{roleLabel}</strong></p>
               <button type="button" onClick={refreshDashboard} disabled={dashboardLoading} style={{ ...styles.logoutBtn, width: "100%", marginBottom: "8px" }}>
                 {dashboardLoading ? "Refreshing…" : "Refresh dashboard"}

@@ -219,6 +219,11 @@ body {
   padding: 0.5rem;
 }
 
+.mobile-profile-shortcut,
+.mobile-login-shortcut {
+  display: none;
+}
+
 /* ── AUTH BUTTONS ── */
 .desktop-auth {
   display: flex;
@@ -411,6 +416,14 @@ textarea {
     max-width: calc(100vw - 76px);
   }
 
+  .app-header.member-signed-in .brand {
+    max-width: calc(100vw - 128px);
+  }
+
+  .app-header:not(.member-signed-in) .brand {
+    max-width: calc(100vw - 142px);
+  }
+
   .brand > a {
     min-width: 0;
     gap: 8px !important;
@@ -445,6 +458,40 @@ textarea {
     background: rgba(14, 165, 233, 0.1);
   }
 
+  .mobile-profile-shortcut {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    margin-left: auto;
+    border: 1px solid rgba(56, 189, 248, 0.28);
+    border-radius: 12px;
+    background: rgba(14, 165, 233, 0.12);
+    color: #7dd3fc;
+    font-size: 1.25rem;
+    text-decoration: none;
+  }
+
+  .mobile-login-shortcut {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 58px;
+    height: 44px;
+    flex: 0 0 auto;
+    margin-left: auto;
+    padding: 0 12px;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 12px;
+    background: linear-gradient(135deg, #0369a1, #0ea5e9);
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 800;
+    text-decoration: none;
+  }
+
   .nav-container.open {
     padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
     overscroll-behavior: contain;
@@ -470,6 +517,7 @@ textarea {
     justify-content: center;
     color: #7dd3fc;
     border: 1px solid rgba(56, 189, 248, 0.2);
+    order: -1;
   }
 
   .mobile-auth {
