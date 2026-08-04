@@ -14,7 +14,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: CLIENT_ORIGIN
-        value: https://outreachhopechurchsunshine.onrender.com
+        value: https://www.outreachhopechurch.org
       - key: UPLOAD_DIR
         value: /opt/render/project/src/backend/uploads
       - key: MONGO_URI
@@ -40,7 +40,7 @@ services:
       - key: MPESA_CALLBACK_SECRET
         sync: false
       - key: MPESA_CALLBACK_URL
-        value: https://outreach-backend.onrender.com/api/mpesa/callback
+        value: https://outreachproject-3.onrender.com/api/mpesa/callback
 
   - type: web
     runtime: static
@@ -53,6 +53,6 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        value: https://outreach-backend.onrender.com
+        value: https://outreachproject-3.onrender.com
       - key: VITE_SITE_URL
-        value: https://outreachhopechurchsunshine.onrender.com
+        value: https://www.outreachhopechurch.org

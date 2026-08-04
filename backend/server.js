@@ -683,58 +683,32 @@ const sermonUpload = multer({
   }
 });
 
-const configuredOrigins = (process.env.CLIENT_ORIGIN || "http://localhost:5173")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
-
-const developmentOrigins = [
-  "http://localhost:3000",
-  "http://localhost:4173",
-  "http://localhost:5173",
-  "http://localhost:5174",
-  "http://127.0.0.1:3000",
-  "http://127.0.0.1:4173",
-  "http://127.0.0.1:5173",
-  "http://127.0.0.1:5174"
+const allowedOrigins = [
+  "https://www.outreachhopechurch.org",
+  "https://outreachhopechurch.org",
+  "http://localhost:5173"
 ];
 
-const allowedOrigins = new Set([
-  ...configuredOrigins,
-  ...(!isProduction ? developmentOrigins : [])
-]);
-
-function isPrivateDevelopmentOrigin(origin) {
-  if (isProduction || !origin) return false;
-
-  try {
-    const { protocol, hostname } = new URL(origin);
-    if (!["http:", "https:"].includes(protocol)) return false;
-
-    return (
-      hostname === "localhost" ||
-      hostname === "127.0.0.1" ||
-      hostname === "::1" ||
-      hostname.startsWith("192.168.") ||
-      hostname.startsWith("10.") ||
-      /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname)
-    );
-  } catch {
-    return false;
-  }
-}
-
-app.use(cors({
+const corsOptions = {
   origin(origin, callback) {
-    if (!origin || allowedOrigins.has(origin) || isPrivateDevelopmentOrigin(origin)) {
+    if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-
-    logWarn("CORS origin rejected", { origin });
-    return callback(null, false);
+    return callback(new Error("Not allowed by CORS"));
   },
-  credentials: true
-}));
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Origin",
+    "X-Requested-With",
+    "Content-Type",
+    "Accept",
+    "Authorization"
+  ]
+};
+
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 app.use(securityHeaders);
 app.use(express.json({ limit: "100kb", strict: true }));
 app.use("/uploads", express.static(uploadsDir));
