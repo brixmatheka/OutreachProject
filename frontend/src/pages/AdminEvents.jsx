@@ -18,6 +18,13 @@ const formatUploadDate = (value) =>
       })
     : "Date unavailable";
 
+const toLocalDateTimeInput = (value = new Date()) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const localTime = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localTime.toISOString().slice(0, 16);
+};
+
 const styles = {
   page: {
     fontFamily: "'Poppins', 'Segoe UI', sans-serif",
@@ -294,7 +301,7 @@ function AnnouncementAdmin({ items, refresh }) {
     title: "",
     category: "General",
     description: "",
-    publishDate: "",
+    publishDate: toLocalDateTimeInput(),
     expiryDate: "",
     targetAudience: "Everyone",
     isPinned: false,
@@ -332,10 +339,10 @@ function AnnouncementAdmin({ items, refresh }) {
       category: item.category || "General",
       description: item.description || "",
       publishDate: item.date
-        ? new Date(item.date).toISOString().slice(0, 16)
+        ? toLocalDateTimeInput(item.date)
         : "",
       expiryDate: item.expiryDate
-        ? new Date(item.expiryDate).toISOString().slice(0, 16)
+        ? toLocalDateTimeInput(item.expiryDate)
         : "",
       targetAudience: item.targetAudience || "Everyone",
       isPinned: Boolean(item.isPinned),
@@ -347,9 +354,12 @@ function AnnouncementAdmin({ items, refresh }) {
     setBusy(true);
     try {
       const data = new FormData();
-      Object.entries(form).forEach(([key, value]) =>
-        data.append(key, String(value)),
-      );
+      Object.entries(form).forEach(([key, value]) => {
+        const normalizedValue = ["publishDate", "expiryDate"].includes(key) && value
+          ? new Date(value).toISOString()
+          : value;
+        data.append(key, String(normalizedValue));
+      });
       if (pdf) data.append("pdf", pdf);
       await axios({
         method: editing ? "patch" : "post",
