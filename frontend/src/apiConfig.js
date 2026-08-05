@@ -39,7 +39,8 @@ axios.interceptors.request.use((config) => {
     existingAuth === SESSION_PLACEHOLDER ||
     path.startsWith("/admin") ||
     path.startsWith("/api/admin") ||
-    path.startsWith("/auth/members");
+    path.startsWith("/auth/members") ||
+    path.startsWith("/announcements");
   const token = isAdminRequest
     ? getStoredToken("adminToken", "token")
     : getStoredToken("memberToken");

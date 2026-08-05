@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { SITE_URL } from "../apiConfig";
+import axios, { SITE_URL } from "../apiConfig";
 import {
   downloadCsvReport,
   downloadPdfReport,
