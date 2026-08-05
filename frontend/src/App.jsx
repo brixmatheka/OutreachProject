@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect } from 'react'
+import { lazy, Suspense, useState, useEffect, useRef } from 'react'
 import axios, { API_URL } from "./apiConfig" // Ensure axios is configured with auth interceptor
 import './App.css'
 import { Routes, Route, Link, Navigate, useLocation, useNavigate } from "react-router-dom"
@@ -30,6 +30,7 @@ const MemberProfile = lazy(() => import("./pages/MemberProfile"));
 const MemberSignup = lazy(() => import("./pages/MemberSignup"));
 const Ministers = lazy(() => import("./pages/Ministers"));
 const OnlineService = lazy(() => import("./pages/OnlineService"));
+const PasswordReset = lazy(() => import("./pages/PasswordReset"));
 const Opportunities = lazy(() => import("./pages/Opportunities"));
 const PrayerRequests = lazy(() => import("./pages/PrayerRequests"));
 const Sermons = lazy(() => import("./pages/Sermons"));
@@ -143,8 +144,55 @@ function App() {
   const [upcomingEvent, setUpcomingEvent] = useState(null);
   const [showEventAnnouncement, setShowEventAnnouncement] = useState(false);
   const [eventAnnouncementClosing, setEventAnnouncementClosing] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [screenMessage, setScreenMessage] = useState("");
+  const screenMessageTimer = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const nativeAlert = window.alert;
+
+    window.alert = (message) => {
+      setScreenMessage(String(message || "Something went wrong. Please try again."));
+      if (screenMessageTimer.current) window.clearTimeout(screenMessageTimer.current);
+      screenMessageTimer.current = window.setTimeout(() => setScreenMessage(""), 6000);
+    };
+
+    return () => {
+      window.alert = nativeAlert;
+      if (screenMessageTimer.current) window.clearTimeout(screenMessageTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const revealAlert = (element) => {
+      if (!(element instanceof HTMLElement) || element.offsetParent === null) return;
+      const bounds = element.getBoundingClientRect();
+      const visible = bounds.top >= 8 && bounds.bottom <= window.innerHeight - 8;
+      if (!visible) element.scrollIntoView({ behavior: "smooth", block: "center" });
+    };
+
+    const observer = new MutationObserver((mutations) => {
+      const latestAlert = mutations
+        .flatMap((mutation) => [...mutation.addedNodes])
+        .flatMap((node) => {
+          if (!(node instanceof HTMLElement)) return [];
+          return [
+            ...(node.matches('[role="alert"]') ? [node] : []),
+            ...node.querySelectorAll('[role="alert"]'),
+          ];
+        })
+        .at(-1);
+
+      if (latestAlert) window.requestAnimationFrame(() => revealAlert(latestAlert));
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const onScroll = () => setIsScrolled(window.scrollY > 6);
@@ -152,6 +200,47 @@ function App() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  useEffect(() => {
+    if (!memberName) {
+      setNotifications([]);
+      setNotificationCount(0);
+      return undefined;
+    }
+    let active = true;
+    const loadNotifications = () => axios.get("/notifications")
+      .then((res) => {
+        if (!active) return;
+        setNotifications(Array.isArray(res.data?.notifications) ? res.data.notifications : []);
+        setNotificationCount(Number(res.data?.unreadCount) || 0);
+      })
+      .catch(() => {});
+    loadNotifications();
+    const interval = window.setInterval(loadNotifications, 10000);
+    const refreshOnFocus = () => loadNotifications();
+    window.addEventListener("focus", refreshOnFocus);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshOnFocus);
+    };
+  }, [memberName]);
+
+  useEffect(() => setNotificationsOpen(false), [location.pathname]);
+
+  const openNotification = async (notification) => {
+    setNotifications((current) => current.map((item) => item._id === notification._id ? { ...item, isRead: true } : item));
+    if (!notification.isRead) setNotificationCount((count) => Math.max(0, count - 1));
+    setNotificationsOpen(false);
+    try { await axios.patch(`/notifications/${notification._id}/read`); } catch { /* refresh will reconcile */ }
+    navigate(notification.relatedUrl || "/events#announcements");
+  };
+
+  const markAllNotificationsRead = async () => {
+    setNotifications((current) => current.map((item) => ({ ...item, isRead: true })));
+    setNotificationCount(0);
+    try { await axios.patch("/notifications/read-all"); } catch { /* refresh will reconcile */ }
+  };
 
   useEffect(() => {
     const applyPreferences = (event) => {
@@ -251,6 +340,7 @@ function App() {
         today.setHours(0, 0, 0, 0);
         const nextEvent = (res.data || [])
           .filter((event) => {
+            if (event.contentType === "announcement") return false;
             const eventDate = new Date(event.date);
             if (Number.isNaN(eventDate.getTime())) return false;
             eventDate.setHours(0, 0, 0, 0);
@@ -380,6 +470,40 @@ function App() {
           </Link>
         )}
 
+        {memberName && (
+          <div className="mobile-notification-center">
+            <button
+              type="button"
+              className={`mobile-notification-bell ${notificationCount > 0 ? "has-unread" : ""}`}
+              aria-label={`Notifications${notificationCount ? `, ${notificationCount} unread` : ""}`}
+              aria-expanded={notificationsOpen}
+              onClick={() => setNotificationsOpen((open) => !open)}
+            >
+              <span aria-hidden="true">🔔</span>
+              {notificationCount > 0 && <span className="notification-count">{notificationCount > 99 ? "99+" : notificationCount}</span>}
+            </button>
+            {notificationsOpen && (
+              <div className="notification-dropdown" role="dialog" aria-label="Latest notifications">
+                <div className="notification-dropdown-header">
+                  <strong>Notifications</strong>
+                  <button type="button" onClick={markAllNotificationsRead} disabled={notificationCount === 0}>Mark All as Read</button>
+                </div>
+                <div className="notification-list">
+                  {notifications.length === 0 ? (
+                    <p className="notification-empty">You have no notifications.</p>
+                  ) : notifications.slice(0, 8).map((notification) => (
+                    <button key={notification._id} type="button" className={`notification-item ${notification.isRead ? "read" : "unread"}`} onClick={() => openNotification(notification)}>
+                      <span className="notification-dot" aria-hidden="true" />
+                      <span><strong>{notification.title}</strong><small>{notification.message}</small><time>{new Date(notification.createdAt).toLocaleString()}</time></span>
+                    </button>
+                  ))}
+                </div>
+                <button type="button" className="notification-view-all" onClick={() => { setNotificationsOpen(false); navigate("/events#announcements"); }}>View All Notifications</button>
+              </div>
+            )}
+          </div>
+        )}
+
         {!memberName && (
           <Link
             to="/login"
@@ -443,6 +567,13 @@ function App() {
 
   return (
     <Suspense fallback={<PageLoader />}>
+    {screenMessage && (
+      <div className="screen-message" role="alert" aria-live="assertive">
+        <span aria-hidden="true">!</span>
+        <p>{screenMessage}</p>
+        <button type="button" onClick={() => setScreenMessage("")} aria-label="Dismiss message">&times;</button>
+      </div>
+    )}
     <Routes>
       {/* Home route */}
       <Route path="/" element={
@@ -456,7 +587,7 @@ function App() {
                 <h1>OUTREACH HOPE CHURCH SUNSHINE</h1>
                 <p className="hero-subtitle">"Where the Word is Preached and Love is Experienced"</p>
                 <div className="hero-cta">
-                  <Link to="/events" className="hero-btn-primary">Events</Link>
+                  <Link to="/events#announcements" className="hero-btn-primary">Announcements</Link>
                   <Link to="/bible" className="hero-btn-secondary">Bible</Link>
                   <Link to="/give" className="hero-btn-secondary">Give Online</Link>
                 </div>
@@ -583,6 +714,8 @@ function App() {
       <Route path="/opportunities" element={<Opportunities />} />
       <Route path="/events" element={<Events />} />
       <Route path="/login" element={<MemberLogin />} />
+      <Route path="/forgot-password" element={<PasswordReset mode="forgot" />} />
+      <Route path="/reset-password" element={<PasswordReset mode="reset" />} />
       <Route path="/signup" element={<MemberSignup />} />
       <Route path="/admin-login" element={<AdminLogin />} />
 

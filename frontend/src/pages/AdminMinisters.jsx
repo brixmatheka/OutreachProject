@@ -506,7 +506,7 @@ export default function AdminMinisters() {
               </div>
 
               <div style={s.galleryHeader}>
-                <span style={s.fieldLabel}>Gallery Images</span>
+                <span style={s.fieldLabel}>Gallery Images ({galleryImages.length})</span>
                 <button type="button" onClick={() => fetchGalleryImages()} style={s.refreshBtn} disabled={galleryLoading}>
                   {galleryLoading ? "Loading..." : "Refresh"}
                 </button>
@@ -534,7 +534,7 @@ export default function AdminMinisters() {
                 <p style={s.helperText}>No gallery images found yet.</p>
               ) : (
                 <div style={s.galleryThumbGrid}>
-                  {galleryImages.slice(0, 24).map((image) => {
+                  {galleryImages.map((image) => {
                     const selected = galleryPhotoUrl.trim() === image.url;
                     return (
                       <button

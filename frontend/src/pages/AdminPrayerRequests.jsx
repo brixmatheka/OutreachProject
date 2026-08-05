@@ -129,8 +129,17 @@ function AdminPrayerRequests() {
     return { category: null, urgency: null, body: text };
   };
 
+  const getRequestDetails = (pr) => {
+    const legacy = parseRequest(pr.request);
+    return {
+      category: pr.category || legacy.category,
+      urgency: pr.urgency || legacy.urgency,
+      body: pr.category ? pr.request : legacy.body,
+    };
+  };
+
   const filteredRequests = prayerRequests.filter((pr) => {
-    const { category, urgency } = parseRequest(pr.request);
+    const { category, urgency } = getRequestDetails(pr);
     if (filter === "archived" && !pr.isArchived) return false;
     if (filter !== "archived" && pr.isArchived) return false;
     if (filter === "unread" && pr.isRead) return false;
@@ -146,12 +155,16 @@ function AdminPrayerRequests() {
   const readCount = activeRequests.length - unreadCount;
 
   const getReportRows = () => filteredRequests.map((request) => {
-    const parsed = parseRequest(request.request);
+    const parsed = getRequestDetails(request);
     return {
       name: request.name || "Not provided",
       phone: request.phone || "Not provided",
+      email: request.email || "Not provided",
       category: parsed.category || "Uncategorized",
       urgency: parsed.urgency || "Unspecified",
+      followUp: request.wantsCallback
+        ? `Requested (${request.preferredContactMethod || "phone"}, ${request.preferredContactTime || "anytime"})`
+        : "Not requested",
       status: request.isArchived ? "Archived" : request.isRead ? "Prayed Over" : "Awaiting Prayer",
       submittedAt: formatReportDate(request.createdAt, true),
       archivedAt: request.isArchived ? formatReportDate(request.archivedAt || request.updatedAt, true) : "—",
@@ -183,14 +196,16 @@ function AdminPrayerRequests() {
     downloadCsvReport({
       title: "CONFIDENTIAL - Prayer Requests Register",
       filters: getReportFilters(),
-      headers: ["Submitted", "Archived", "Name", "Phone", "Category", "Urgency", "Status", "Prayer Request"],
+      headers: ["Submitted", "Archived", "Name", "Phone", "Email", "Category", "Urgency", "Pastoral Follow-up", "Status", "Prayer Request"],
       rows: rows.map((request) => [
         request.submittedAt,
         request.archivedAt,
         request.name,
         request.phone,
+        request.email,
         request.category,
         request.urgency,
+        request.followUp,
         request.status,
         request.request,
       ]),
@@ -215,8 +230,10 @@ function AdminPrayerRequests() {
         { label: "Archived", value: "archivedAt" },
         { label: "Name", value: "name" },
         { label: "Phone", value: "phone" },
+        { label: "Email", value: "email" },
         { label: "Category", value: "category" },
         { label: "Urgency", value: "urgency" },
+        { label: "Pastoral Follow-up", value: "followUp" },
         { label: "Status", value: "status" },
         { label: "Prayer Request", value: "request" },
       ],
@@ -241,8 +258,10 @@ function AdminPrayerRequests() {
         { label: "Archived", value: "archivedAt" },
         { label: "Name", value: "name" },
         { label: "Phone", value: "phone" },
+        { label: "Email", value: "email" },
         { label: "Category", value: "category" },
         { label: "Urgency", value: "urgency" },
+        { label: "Follow-up", value: "followUp" },
         { label: "Status", value: "status" },
         { label: "Prayer Request", value: "request", width: 2.5 },
       ],
@@ -604,7 +623,7 @@ function AdminPrayerRequests() {
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             {filteredRequests.map((pr) => {
               const isExpanded = expandedId === pr._id;
-              const { category, urgency, body } = parseRequest(pr.request);
+              const { category, urgency, body } = getRequestDetails(pr);
               const isUrgent = urgency?.toLowerCase().includes("urgent");
 
               return (
@@ -731,6 +750,28 @@ function AdminPrayerRequests() {
                       borderTop: "1px solid rgba(255,255,255,0.05)",
                       padding: "20px 24px 24px",
                     }}>
+                      <div style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+                        gap: "10px",
+                        marginBottom: "18px",
+                      }}>
+                        {[
+                          ["Email", pr.email || "Not provided"],
+                          ["Privacy", pr.isAnonymous ? "Anonymous request" : "Named request"],
+                          ["Pastoral follow-up", pr.wantsCallback ? "Requested" : "Not requested"],
+                          ...(pr.wantsCallback ? [
+                            ["Contact method", pr.preferredContactMethod || "phone"],
+                            ["Best time", pr.preferredContactTime || "anytime"],
+                          ] : []),
+                        ].map(([label, value]) => (
+                          <div key={label} style={{ padding: "12px", borderRadius: "10px", background: "rgba(14,165,233,0.05)", border: "1px solid rgba(14,165,233,0.12)" }}>
+                            <span style={{ display: "block", color: "#64748b", fontSize: "0.67rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</span>
+                            <strong style={{ display: "block", marginTop: "4px", color: pr.wantsCallback && label === "Pastoral follow-up" ? "#fbbf24" : "#cbd5e1", fontSize: "0.82rem", overflowWrap: "anywhere", textTransform: "capitalize" }}>{value}</strong>
+                          </div>
+                        ))}
+                      </div>
+
                       {/* Request text */}
                       <div style={{
                         background: "rgba(15,23,42,0.5)",

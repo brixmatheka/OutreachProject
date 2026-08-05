@@ -31,6 +31,8 @@ function PrayerRequest() {
     urgency: "standard",
     isAnonymous: false,
     wantsCallback: false,
+    preferredContactMethod: "phone",
+    preferredContactTime: "anytime",
     request: "",
   })
   const [status, setStatus] = useState(null) // { type: "success"|"error", message: "" }
@@ -94,9 +96,16 @@ function PrayerRequest() {
       await axios.post(
         "/prayer-requests",
         {
-          name: formData.isAnonymous ? "Anonymous" : formData.name,
+          name: formData.isAnonymous ? "Anonymous" : formData.name.trim(),
           phone: formData.phone,
-          request: `[${CATEGORIES.find(c => c.value === category)?.label || category}] [${formData.urgency.toUpperCase()}] ${request}`,
+          email: formData.email.trim(),
+          category: formData.category,
+          urgency: formData.urgency,
+          isAnonymous: formData.isAnonymous,
+          wantsCallback: formData.wantsCallback,
+          preferredContactMethod: formData.wantsCallback ? formData.preferredContactMethod : "",
+          preferredContactTime: formData.wantsCallback ? formData.preferredContactTime : "",
+          request: request.trim(),
         },
         { headers: { "Content-Type": "application/json" } }
       )
@@ -132,7 +141,7 @@ function PrayerRequest() {
   })
 
   return (
-    <div style={{
+    <div className="prayer-page" style={{
       minHeight: "100vh",
       backgroundColor: "#020617",
       backgroundImage: `
@@ -158,14 +167,14 @@ function PrayerRequest() {
       }} />
 
       {/* Close button */}
-      <div style={{ position: "fixed", top: "24px", right: "28px", zIndex: 100 }}>
+      <div className="prayer-close" style={{ position: "fixed", top: "24px", right: "28px", zIndex: 100 }}>
         <CloseButton />
       </div>
 
-      <div style={{ maxWidth: "720px", margin: "0 auto", position: "relative", zIndex: 1 }}>
+      <div className="prayer-shell" style={{ maxWidth: "720px", margin: "0 auto", position: "relative", zIndex: 1 }}>
 
         {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: "48px" }}>
+        <div className="prayer-hero" style={{ textAlign: "center", marginBottom: "48px" }}>
           <div style={{
             width: "80px", height: "80px",
             background: "linear-gradient(135deg, #0ea5e9, #38bdf8)",
@@ -177,7 +186,7 @@ function PrayerRequest() {
           }}>
             🙏
           </div>
-          <h1 style={{
+          <h1 className="prayer-title" style={{
             fontSize: "2.6rem",
             fontWeight: "800",
             background: "linear-gradient(to right, #f8fafc, #bae6fd)",
@@ -212,27 +221,8 @@ function PrayerRequest() {
           </div>
         )}
 
-        {/* Status banner */}
-        {status && (
-          <div style={{
-            padding: "18px 22px",
-            borderRadius: "14px",
-            marginBottom: "28px",
-            fontSize: "0.95rem",
-            lineHeight: 1.6,
-            fontWeight: 500,
-            display: "flex", alignItems: "flex-start", gap: "12px",
-            backgroundColor: status.type === "success" ? "rgba(22,163,74,0.1)" : "rgba(220,38,38,0.1)",
-            border: `1px solid ${status.type === "success" ? "rgba(74,222,128,0.3)" : "rgba(248,113,113,0.3)"}`,
-            color: status.type === "success" ? "#4ade80" : "#f87171",
-          }}>
-            <span style={{ fontSize: "1.2rem", flexShrink: 0 }}>{status.type === "success" ? "✝️" : "⚠️"}</span>
-            {status.message}
-          </div>
-        )}
-
         {/* Form card */}
-        <div style={{
+        <div className="prayer-card" style={{
           backgroundColor: "rgba(2,6,23,0.8)",
           backdropFilter: "blur(24px)",
           borderRadius: "28px",
@@ -242,7 +232,7 @@ function PrayerRequest() {
         }}>
 
           {/* Card header strip */}
-          <div style={{
+          <div className="prayer-card-header" style={{
             background: "linear-gradient(90deg, rgba(14,165,233,0.12), rgba(99,102,241,0.08))",
             borderBottom: "1px solid rgba(14,165,233,0.12)",
             padding: "20px 40px",
@@ -254,7 +244,7 @@ function PrayerRequest() {
             </span>
           </div>
 
-          <form onSubmit={handleSubmit} style={{ padding: "40px" }}>
+          <form className="prayer-form" onSubmit={handleSubmit} style={{ padding: "40px" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
 
               {/* Section: Contact */}
@@ -262,7 +252,7 @@ function PrayerRequest() {
                 <p style={{ color: "#38bdf8", fontSize: "0.78rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 18px" }}>
                   — Contact Information
                 </p>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                <div className="prayer-two-column" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
                   <div>
                     <label style={{ display: "block", marginBottom: "8px", color: "#cbd5e1", fontSize: "0.85rem", fontWeight: 600 }}>
                       Full Name {formData.isAnonymous && <span style={{ color: "#64748b" }}>(hidden)</span>}
@@ -317,8 +307,35 @@ function PrayerRequest() {
                   />
                 </div>
 
+                {formData.wantsCallback && (
+                  <div style={{ marginTop: "18px", padding: "18px", borderRadius: "14px", border: "1px solid rgba(245,158,11,0.22)", background: "rgba(245,158,11,0.05)" }}>
+                    <p style={{ color: "#fbbf24", fontSize: "0.78rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 14px" }}>
+                      Pastoral Follow-up Preferences
+                    </p>
+                    <div className="prayer-two-column" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+                      <div>
+                        <label style={{ display: "block", marginBottom: "8px", color: "#cbd5e1", fontSize: "0.82rem", fontWeight: 600 }}>Contact method</label>
+                        <select name="preferredContactMethod" value={formData.preferredContactMethod} onChange={handleChange} style={inputStyle("preferredContactMethod")}>
+                          <option value="phone">Phone call</option>
+                          <option value="whatsapp">WhatsApp</option>
+                          <option value="email">Email</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ display: "block", marginBottom: "8px", color: "#cbd5e1", fontSize: "0.82rem", fontWeight: 600 }}>Best time</label>
+                        <select name="preferredContactTime" value={formData.preferredContactTime} onChange={handleChange} style={inputStyle("preferredContactTime")}>
+                          <option value="anytime">Any time</option>
+                          <option value="morning">Morning</option>
+                          <option value="afternoon">Afternoon</option>
+                          <option value="evening">Evening</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Checkboxes */}
-                <div style={{ display: "flex", gap: "24px", marginTop: "16px", flexWrap: "wrap" }}>
+                <div className="prayer-options" style={{ display: "flex", gap: "24px", marginTop: "16px", flexWrap: "wrap" }}>
                   {[
                     { name: "isAnonymous", label: "Submit anonymously" },
                     { name: "wantsCallback", label: "I'd like a pastoral call-back" },
@@ -350,7 +367,7 @@ function PrayerRequest() {
                 <p style={{ color: "#38bdf8", fontSize: "0.78rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 18px" }}>
                   — Prayer Category <span style={{ color: "#ef4444" }}>*</span>
                 </p>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "10px" }}>
+                <div className="prayer-category-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "10px" }}>
                   {CATEGORIES.map((cat) => (
                     <button
                       key={cat.value}
@@ -381,7 +398,7 @@ function PrayerRequest() {
                 <p style={{ color: "#38bdf8", fontSize: "0.78rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 18px" }}>
                   — Urgency Level
                 </p>
-                <div style={{ display: "flex", gap: "14px", flexWrap: "wrap" }}>
+                <div className="prayer-urgency-grid" style={{ display: "flex", gap: "14px", flexWrap: "wrap" }}>
                   {URGENCY.map((u) => (
                     <button
                       key={u.value}
@@ -451,7 +468,30 @@ function PrayerRequest() {
               </div>
 
               {/* Submit */}
-              <div>
+              <div className="prayer-submit-area">
+                {status && (
+                  <div
+                    role={status.type === "error" ? "alert" : "status"}
+                    aria-live="polite"
+                    style={{
+                      padding: "16px 18px",
+                      borderRadius: "12px",
+                      marginBottom: "16px",
+                      fontSize: "0.92rem",
+                      lineHeight: 1.6,
+                      fontWeight: 600,
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "10px",
+                      backgroundColor: status.type === "success" ? "rgba(22,163,74,0.1)" : "rgba(220,38,38,0.12)",
+                      border: `1px solid ${status.type === "success" ? "rgba(74,222,128,0.3)" : "rgba(248,113,113,0.38)"}`,
+                      color: status.type === "success" ? "#4ade80" : "#fca5a5",
+                    }}
+                  >
+                    <span style={{ fontSize: "1.1rem", flexShrink: 0 }}>{status.type === "success" ? "✝️" : "⚠️"}</span>
+                    <span>{status.message}</span>
+                  </div>
+                )}
                 <button
                   type="submit"
                   disabled={loading}
@@ -534,9 +574,56 @@ function PrayerRequest() {
         textarea::placeholder, input::placeholder { color: #334155 !important; }
         * { box-sizing: border-box; }
         @media (max-width: 600px) {
-          form > div > div[style*="grid-template-columns: 1fr 1fr"] {
+          .prayer-page { padding: 28px 12px 48px !important; }
+          .prayer-close {
+            position: absolute !important;
+            top: 10px !important;
+            right: 10px !important;
+          }
+          .prayer-hero { margin: 28px 8px 28px !important; }
+          .prayer-hero > div:first-child {
+            width: 64px !important;
+            height: 64px !important;
+            margin-bottom: 20px !important;
+            border-radius: 18px !important;
+            font-size: 29px !important;
+          }
+          .prayer-title { font-size: clamp(1.75rem, 9vw, 2.2rem) !important; }
+          .prayer-hero p { font-size: 0.94rem !important; line-height: 1.6 !important; }
+          .prayer-card { border-radius: 20px !important; }
+          .prayer-card-header { padding: 16px 18px !important; }
+          .prayer-form { padding: 22px 16px 24px !important; }
+          .prayer-form > div { gap: 24px !important; }
+          .prayer-two-column {
             grid-template-columns: 1fr !important;
           }
+          .prayer-category-grid {
+            grid-template-columns: 1fr 1fr !important;
+            gap: 8px !important;
+          }
+          .prayer-category-grid button {
+            min-height: 54px;
+            padding: 10px !important;
+            font-size: 0.76rem !important;
+          }
+          .prayer-urgency-grid {
+            display: grid !important;
+            grid-template-columns: 1fr !important;
+          }
+          .prayer-options { display: grid !important; gap: 10px !important; }
+          .prayer-options label {
+            min-height: 46px;
+            padding: 10px;
+            border-radius: 10px;
+            background: rgba(14, 165, 233, 0.05);
+          }
+          .prayer-form input,
+          .prayer-form select,
+          .prayer-form textarea { font-size: 16px !important; }
+          .prayer-submit-area button[type="submit"] { min-height: 56px; }
+        }
+        @media (max-width: 360px) {
+          .prayer-category-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
     </div>

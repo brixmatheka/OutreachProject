@@ -269,6 +269,11 @@ function MemberLogin() {
                   {showPassword ? "HIDE" : "SHOW"}
                 </button>
               </div>
+              <div style={{ marginTop: "9px", textAlign: "right" }}>
+                <Link to="/forgot-password" style={{ color: "#0369a1", fontSize: "0.78rem", fontWeight: 800, textDecoration: "none" }}>
+                  Forgot password?
+                </Link>
+              </div>
             </div>
 
             {/* Submit */}

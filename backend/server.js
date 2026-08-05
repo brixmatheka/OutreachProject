@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
+import nodemailer from "nodemailer";
 import dns from "node:dns";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -100,6 +101,21 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const MEMBER_JWT_SECRET = process.env.MEMBER_JWT_SECRET;
 const MONGO_URI = process.env.MONGO_URI;
 const MPESA_CALLBACK_SECRET = process.env.MPESA_CALLBACK_SECRET;
+const FRONTEND_URL = String(process.env.FRONTEND_URL || process.env.CLIENT_ORIGIN || "http://localhost:5173").replace(/\/$/, "");
+const SMTP_HOST = process.env.SMTP_HOST;
+const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
+const SMTP_USER = process.env.SMTP_USER;
+const SMTP_PASS = process.env.SMTP_PASS;
+const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER;
+
+const mailTransport = SMTP_HOST && SMTP_USER && SMTP_PASS
+  ? nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: SMTP_PORT === 465,
+      auth: { user: SMTP_USER, pass: SMTP_PASS }
+    })
+  : null;
 
 const MAX_UPLOAD_FILE_SIZE = 25 * 1024 * 1024;
 const MAX_GALLERY_FILES = 20;
@@ -904,6 +920,68 @@ app.post("/auth/login", authLimiter, async (req, res) => {
   }
 });
 
+/* REQUEST MEMBER PASSWORD RESET */
+app.post("/auth/forgot-password", authLimiter, async (req, res) => {
+  const genericMessage = "If an active account exists for that email, a password reset link has been sent.";
+  try {
+    const email = normalizeEmail(req.body.email);
+    if (!email) return res.status(400).json({ message: "Enter a valid email address." });
+    if (!mailTransport || !SMTP_FROM) {
+      logError("Password reset email is not configured", new Error("Missing SMTP configuration"));
+      return res.status(503).json({ message: "Password reset email is temporarily unavailable. Please contact the church office." });
+    }
+
+    const member = await Member.findOne({ email, isDeleted: { $ne: true } }).select("+passwordResetTokenHash +passwordResetExpiresAt");
+    if (member) {
+      const rawToken = crypto.randomBytes(32).toString("hex");
+      member.passwordResetTokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+      member.passwordResetExpiresAt = new Date(Date.now() + 60 * 60 * 1000);
+      await member.save();
+      const resetUrl = `${FRONTEND_URL}/reset-password?token=${encodeURIComponent(rawToken)}`;
+      try {
+        await mailTransport.sendMail({
+          from: SMTP_FROM,
+          to: member.email,
+          subject: "Reset your Outreach Hope Church password",
+          text: `Hello ${member.firstName},\n\nWe received a request to reset your Outreach Hope Church member account password.\n\nReset your password using this secure link:\n${resetUrl}\n\nThis link expires in 60 minutes and can only be used once. If you did not request this, you can safely ignore this email.\n\nOutreach Hope Church Sunshine`
+        });
+      } catch (mailError) {
+        member.passwordResetTokenHash = undefined;
+        member.passwordResetExpiresAt = undefined;
+        await member.save();
+        throw mailError;
+      }
+    }
+    res.json({ message: genericMessage });
+  } catch (err) {
+    logError("Password reset request failed", err);
+    res.status(503).json({ message: "We could not send a reset email right now. Please try again later." });
+  }
+});
+
+/* RESET MEMBER PASSWORD WITH ONE-TIME TOKEN */
+app.post("/auth/reset-password", authLimiter, async (req, res) => {
+  try {
+    const token = String(req.body.token || "");
+    const password = String(req.body.password || "");
+    if (!token || token.length !== 64) return res.status(400).json({ message: "This password reset link is invalid or has expired." });
+    if (password.length < 8) return res.status(400).json({ message: "Password must be at least 8 characters." });
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const member = await Member.findOne({
+      passwordResetTokenHash: tokenHash,
+      passwordResetExpiresAt: { $gt: new Date() },
+      isDeleted: { $ne: true }
+    }).select("+passwordResetTokenHash +passwordResetExpiresAt");
+    if (!member) return res.status(400).json({ message: "This password reset link is invalid or has expired." });
+    member.passwordHash = await bcrypt.hash(password, 12);
+    member.passwordResetTokenHash = undefined;
+    member.passwordResetExpiresAt = undefined;
+    await member.save();
+    clearAuthCookie(res, MEMBER_COOKIE);
+    res.json({ message: "Your password has been reset successfully. You can now sign in." });
+  } catch (err) { handleServerError(res, err); }
+});
+
 app.post("/auth/logout", (req, res) => {
   clearAuthCookie(res, MEMBER_COOKIE);
   res.json({ message: "Logged out" });
@@ -1571,6 +1649,12 @@ function serializePublicEvent(event) {
     location: event.location,
     time: event.time,
     banner: event.banner,
+    contentType: event.contentType || "event",
+    pdfUrl: event.pdfUrl || "",
+    category: event.category || "General",
+    targetAudience: event.targetAudience || "Everyone",
+    expiryDate: event.expiryDate,
+    isPinned: Boolean(event.isPinned),
     eventCode: event.eventCode,
     attendeesCount: event.attendeesCount || event.attendees?.length || 0,
     createdAt: event.createdAt,
@@ -1581,11 +1665,108 @@ function serializePublicEvent(event) {
 /* GET EVENTS */
 app.get("/events", async (req, res) => {
   try {
-    const events = await Event.find().sort({ date: 1 });
+    const now = new Date();
+    const events = await Event.find({
+      $or: [
+        { contentType: { $ne: "announcement" } },
+        { contentType: "announcement", date: { $lte: now }, $or: [{ expiryDate: null }, { expiryDate: { $exists: false } }, { expiryDate: { $gte: now } }] }
+      ]
+    }).sort({ isPinned: -1, date: 1 });
     res.json(events.map(serializePublicEvent));
   } catch (err) {
     handleServerError(res, err);
   }
+});
+
+/* MEMBER NOTIFICATIONS — currently sourced from published announcements */
+app.get("/notifications", verifyMemberToken, async (req, res) => {
+  try {
+    const now = new Date();
+    const member = await Member.findById(req.member.id).select("readAnnouncementIds isDeleted").lean();
+    if (!member || member.isDeleted) return res.status(404).json({ message: "Member not found" });
+    const readIds = new Set((member.readAnnouncementIds || []).map(String));
+    const announcements = await Event.find({
+      contentType: "announcement",
+      date: { $lte: now },
+      $or: [{ expiryDate: null }, { expiryDate: { $exists: false } }, { expiryDate: { $gte: now } }]
+    }).sort({ isPinned: -1, date: -1 }).limit(50).lean();
+    const notifications = announcements.map((item) => ({
+      _id: item._id,
+      title: item.title,
+      message: item.description,
+      category: item.category || "General",
+      targetAudience: item.targetAudience || "Everyone",
+      isPinned: Boolean(item.isPinned),
+      createdAt: item.date,
+      relatedUrl: "/events#announcements",
+      isRead: readIds.has(String(item._id))
+    }));
+    res.json({ unreadCount: notifications.filter((item) => !item.isRead).length, notifications });
+  } catch (err) { handleServerError(res, err); }
+});
+
+app.patch("/notifications/read-all", verifyMemberToken, async (req, res) => {
+  try {
+    const now = new Date();
+    const ids = await Event.find({ contentType: "announcement", date: { $lte: now } }).distinct("_id");
+    await Member.findByIdAndUpdate(req.member.id, { $addToSet: { readAnnouncementIds: { $each: ids } } });
+    res.json({ message: "All notifications marked as read" });
+  } catch (err) { handleServerError(res, err); }
+});
+
+app.patch("/notifications/:id/read", verifyMemberToken, async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: "Invalid notification ID" });
+    await Member.findByIdAndUpdate(req.member.id, { $addToSet: { readAnnouncementIds: req.params.id } });
+    res.json({ message: "Notification marked as read" });
+  } catch (err) { handleServerError(res, err); }
+});
+
+const announcementUpload = sermonUpload.fields([{ name: "pdf", maxCount: 1 }]);
+const announcementAudiences = ["Everyone", "Members", "Leaders", "Youth", "Choir", "Women", "Men", "Children", "Visitors"];
+
+function announcementFiles(req) {
+  return { pdf: req.files?.pdf?.[0] };
+}
+
+app.post("/announcements", uploadLimiter, verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.EVENTS_ADMIN), announcementUpload, async (req, res) => {
+  const files = announcementFiles(req);
+  try {
+    if (!req.body.title?.trim() || !req.body.description?.trim() || !req.body.publishDate) throw new Error("Title, description, and publish date are required.");
+    const publishDate = new Date(req.body.publishDate);
+    const expiryDate = req.body.expiryDate ? new Date(req.body.expiryDate) : undefined;
+    if (Number.isNaN(publishDate.getTime()) || (expiryDate && Number.isNaN(expiryDate.getTime()))) throw new Error("Announcement dates are invalid.");
+    if (expiryDate && expiryDate <= publishDate) throw new Error("Expiry date must be after the publish date.");
+    const audience = announcementAudiences.includes(req.body.targetAudience) ? req.body.targetAudience : "Everyone";
+    const item = await Event.create({ contentType: "announcement", title: truncateText(req.body.title, 150), description: truncateText(req.body.description, 3000), date: publishDate, expiryDate, category: truncateText(req.body.category || "General", 80), targetAudience: audience, isPinned: req.body.isPinned === "true", pdfUrl: files.pdf ? `/uploads/${files.pdf.filename}` : "", eventCode: `ANN-${Math.floor(1000 + Math.random() * 9000)}` });
+    res.status(201).json({ message: "Announcement created", announcement: item });
+  } catch (err) { removeUploadedFiles([files.pdf].filter(Boolean)); if (err.message?.includes("required") || err.message?.includes("date")) return res.status(400).json({ message: err.message }); handleServerError(res, err); }
+});
+
+app.patch("/announcements/:id", uploadLimiter, verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.EVENTS_ADMIN), announcementUpload, async (req, res) => {
+  const files = announcementFiles(req);
+  try {
+    const item = await Event.findOne({ _id: req.params.id, contentType: "announcement" });
+    if (!item) return res.status(404).json({ message: "Announcement not found" });
+    const oldPdf = item.pdfUrl;
+    if (req.body.title !== undefined) item.title = truncateText(req.body.title, 150);
+    if (req.body.description !== undefined) item.description = truncateText(req.body.description, 3000);
+    if (req.body.category !== undefined) item.category = truncateText(req.body.category, 80);
+    if (req.body.targetAudience !== undefined && announcementAudiences.includes(req.body.targetAudience)) item.targetAudience = req.body.targetAudience;
+    if (req.body.publishDate) item.date = new Date(req.body.publishDate);
+    if (req.body.expiryDate !== undefined) item.expiryDate = req.body.expiryDate ? new Date(req.body.expiryDate) : undefined;
+    if (req.body.isPinned !== undefined) item.isPinned = req.body.isPinned === "true";
+    if (files.pdf) item.pdfUrl = `/uploads/${files.pdf.filename}`;
+    await item.save();
+    [files.pdf && oldPdf].filter(Boolean).forEach((url) => { const p = resolveUploadPath(url); if (p && fs.existsSync(p)) fs.unlinkSync(p); });
+    res.json({ message: "Announcement updated", announcement: item });
+  } catch (err) { removeUploadedFiles([files.pdf].filter(Boolean)); handleServerError(res, err); }
+});
+
+app.patch("/announcements/:id/pin", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.EVENTS_ADMIN), async (req, res) => {
+  const item = await Event.findOneAndUpdate({ _id: req.params.id, contentType: "announcement" }, { isPinned: req.body.isPinned === true }, { new: true });
+  if (!item) return res.status(404).json({ message: "Announcement not found" });
+  res.json(item);
 });
 
 /* GET EVENTS WITH ATTENDEES (admin only) */
@@ -1608,6 +1789,7 @@ app.post("/events/:id/attend", publicWriteLimiter, optionalMemberToken, async (r
 
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ message: "Event not found" });
+    if (event.contentType === "announcement") return res.status(400).json({ message: "Announcements do not accept attendance." });
 
     const cleanPhone = truncateText(phone, 30);
     if (event.attendees.some(a => a.phone === cleanPhone)) {
@@ -1721,6 +1903,10 @@ app.delete("/events/:id", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLE
       } catch (fileError) {
         logError("Failed to remove deleted event banner", fileError);
       }
+    }
+    const pdfPath = resolveUploadPath(event.pdfUrl);
+    if (pdfPath && fs.existsSync(pdfPath)) {
+      try { fs.unlinkSync(pdfPath); } catch (fileError) { logError("Failed to remove announcement PDF", fileError); }
     }
     res.json({ message: "Event deleted" });
   } catch (err) {
@@ -1920,15 +2106,44 @@ app.delete("/projects/:id", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, RO
 /* SUBMIT PRAYER REQUEST (public) */
 app.post("/prayer-requests", publicWriteLimiter, async (req, res) => {
   try {
-    const { name, phone, request } = req.body;
+    const {
+      name,
+      phone,
+      email = "",
+      category,
+      urgency = "standard",
+      isAnonymous = false,
+      wantsCallback = false,
+      preferredContactMethod = "",
+      preferredContactTime = "",
+      request
+    } = req.body;
 
-    if (!name || !phone || !request) {
-      return res.status(400).json({ message: "All fields are required" });
+    const allowedCategories = ["health", "family", "finances", "spiritual", "grief", "work", "marriage", "salvation", "guidance", "other"];
+    const allowedUrgency = ["standard", "urgent"];
+    const allowedContactMethods = ["phone", "whatsapp", "email", ""];
+    const allowedContactTimes = ["morning", "afternoon", "evening", "anytime", ""];
+
+    if (!name || !phone || !request || !category) {
+      return res.status(400).json({ message: "Name, phone number, category, and prayer request are required." });
+    }
+    if (!allowedCategories.includes(category) || !allowedUrgency.includes(urgency)) {
+      return res.status(400).json({ message: "Select a valid prayer category and urgency level." });
+    }
+    if (!allowedContactMethods.includes(preferredContactMethod) || !allowedContactTimes.includes(preferredContactTime)) {
+      return res.status(400).json({ message: "Select valid pastoral contact preferences." });
     }
 
     const prayerRequest = new PrayerRequest({
       name: truncateText(name, 120),
       phone: truncateText(phone, 30),
+      email: truncateText(email, 180).toLowerCase(),
+      category,
+      urgency,
+      isAnonymous: isAnonymous === true,
+      wantsCallback: wantsCallback === true,
+      preferredContactMethod: wantsCallback ? preferredContactMethod : "",
+      preferredContactTime: wantsCallback ? preferredContactTime : "",
       request: truncateText(request, 3000)
     });
     await prayerRequest.save();

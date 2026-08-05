@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 
 const eventSchema = new mongoose.Schema({
+  contentType: { type: String, enum: ["event", "announcement"], default: "event", index: true },
   title: {
     type: String,
     required: true,
@@ -22,6 +23,11 @@ const eventSchema = new mongoose.Schema({
     type: String,
     default: "",
   },
+  pdfUrl: { type: String, default: "" },
+  category: { type: String, default: "General" },
+  targetAudience: { type: String, enum: ["Everyone", "Members", "Leaders", "Youth", "Choir", "Women", "Men", "Children", "Visitors"], default: "Everyone" },
+  expiryDate: { type: Date },
+  isPinned: { type: Boolean, default: false },
   attendeesCount: {
     type: Number,
     default: 0,

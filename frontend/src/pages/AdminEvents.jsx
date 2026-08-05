@@ -2,16 +2,28 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { SITE_URL } from "../apiConfig";
-import { downloadCsvReport, downloadPdfReport, downloadWordReport, formatReportDate, maskSensitiveId } from "../adminReports";
+import {
+  downloadCsvReport,
+  downloadPdfReport,
+  downloadWordReport,
+  formatReportDate,
+  maskSensitiveId,
+} from "../adminReports";
 
-const formatUploadDate = (value) => value
-  ? new Date(value).toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short", timeZone: "Africa/Nairobi" })
-  : "Date unavailable";
+const formatUploadDate = (value) =>
+  value
+    ? new Date(value).toLocaleString("en-KE", {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: "Africa/Nairobi",
+      })
+    : "Date unavailable";
 
 const styles = {
   page: {
     fontFamily: "'Poppins', 'Segoe UI', sans-serif",
-    background: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)",
+    background:
+      "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)",
     minHeight: "100vh",
     color: "#f8fafc",
   },
@@ -32,8 +44,19 @@ const styles = {
     zIndex: 100,
   },
   headerLeft: { display: "flex", alignItems: "center", gap: "14px" },
-  headerTitle: { margin: 0, fontSize: "1.2rem", fontWeight: 700, color: "#fff" },
-  headerSubtitle: { margin: 0, fontSize: "0.7rem", color: "#64748b", letterSpacing: "1px", textTransform: "uppercase" },
+  headerTitle: {
+    margin: 0,
+    fontSize: "1.2rem",
+    fontWeight: 700,
+    color: "#fff",
+  },
+  headerSubtitle: {
+    margin: 0,
+    fontSize: "0.7rem",
+    color: "#64748b",
+    letterSpacing: "1px",
+    textTransform: "uppercase",
+  },
   backBtn: {
     background: "rgba(255,255,255,0.05)",
     color: "#fff",
@@ -56,54 +79,157 @@ const styles = {
     marginBottom: "32px",
   },
   sectionHeading: {
-    fontSize: "1rem", fontWeight: 700, color: "#38bdf8", marginBottom: "18px",
-    display: "flex", alignItems: "center", gap: "10px",
-    borderLeft: "4px solid #0ea5e9", paddingLeft: "12px",
+    fontSize: "1rem",
+    fontWeight: 700,
+    color: "#38bdf8",
+    marginBottom: "18px",
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    borderLeft: "4px solid #0ea5e9",
+    paddingLeft: "12px",
   },
-  formGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "14px" },
+  formGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "14px",
+    marginBottom: "14px",
+  },
   input: {
-    width: "100%", padding: "11px 14px", border: "1.5px solid rgba(255,255,255,0.1)", borderRadius: "10px",
-    fontSize: "0.9rem", background: "rgba(15, 23, 42, 0.6)", color: "#f8fafc", outline: "none",
-    transition: "all 0.2s", boxSizing: "border-box",
+    width: "100%",
+    padding: "11px 14px",
+    border: "1.5px solid rgba(255,255,255,0.1)",
+    borderRadius: "10px",
+    fontSize: "0.9rem",
+    background: "rgba(15, 23, 42, 0.6)",
+    color: "#f8fafc",
+    outline: "none",
+    transition: "all 0.2s",
+    boxSizing: "border-box",
   },
   textarea: {
-    width: "100%", padding: "11px 14px", border: "1.5px solid rgba(255,255,255,0.1)", borderRadius: "10px",
-    fontSize: "0.9rem", background: "rgba(15, 23, 42, 0.6)", color: "#f8fafc", outline: "none",
-    transition: "all 0.2s", resize: "vertical", minHeight: "90px",
-    boxSizing: "border-box", fontFamily: "inherit",
+    width: "100%",
+    padding: "11px 14px",
+    border: "1.5px solid rgba(255,255,255,0.1)",
+    borderRadius: "10px",
+    fontSize: "0.9rem",
+    background: "rgba(15, 23, 42, 0.6)",
+    color: "#f8fafc",
+    outline: "none",
+    transition: "all 0.2s",
+    resize: "vertical",
+    minHeight: "90px",
+    boxSizing: "border-box",
+    fontFamily: "inherit",
   },
   primaryBtn: {
-    background: "linear-gradient(90deg, #0369a1, #0ea5e9)", color: "#fff", border: "none",
-    borderRadius: "10px", padding: "11px 28px", cursor: "pointer", fontSize: "0.9rem",
-    fontWeight: 700, boxShadow: "0 4px 14px rgba(14,165,233,0.4)", transition: "transform 0.15s, box-shadow 0.15s",
+    background: "linear-gradient(90deg, #0369a1, #0ea5e9)",
+    color: "#fff",
+    border: "none",
+    borderRadius: "10px",
+    padding: "11px 28px",
+    cursor: "pointer",
+    fontSize: "0.9rem",
+    fontWeight: 700,
+    boxShadow: "0 4px 14px rgba(14,165,233,0.4)",
+    transition: "transform 0.15s, box-shadow 0.15s",
   },
   deleteBtn: {
-    background: "rgba(239, 68, 68, 0.12)", color: "#f87171", border: "1px solid rgba(239, 68, 68, 0.25)",
-    borderRadius: "8px", padding: "7px 16px", cursor: "pointer", fontSize: "0.8rem",
-    fontWeight: 600, transition: "all 0.2s",
+    background: "rgba(239, 68, 68, 0.12)",
+    color: "#f87171",
+    border: "1px solid rgba(239, 68, 68, 0.25)",
+    borderRadius: "8px",
+    padding: "7px 16px",
+    cursor: "pointer",
+    fontSize: "0.8rem",
+    fontWeight: 600,
+    transition: "all 0.2s",
   },
   shareBtn: {
-    background: "rgba(34, 197, 94, 0.12)", color: "#4ade80", border: "1px solid rgba(34, 197, 94, 0.25)",
-    borderRadius: "8px", padding: "7px 16px", cursor: "pointer", fontSize: "0.8rem",
-    fontWeight: 600, transition: "all 0.2s", display: "inline-flex", alignItems: "center", gap: "6px"
+    background: "rgba(34, 197, 94, 0.12)",
+    color: "#4ade80",
+    border: "1px solid rgba(34, 197, 94, 0.25)",
+    borderRadius: "8px",
+    padding: "7px 16px",
+    cursor: "pointer",
+    fontSize: "0.8rem",
+    fontWeight: 600,
+    transition: "all 0.2s",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
   },
   eventCardActive: {
-    background: "rgba(30, 41, 59, 0.65)", backdropFilter: "blur(14px)", border: "1px solid rgba(14,165,233,0.2)",
-    borderLeft: "4px solid #0ea5e9", borderRadius: "18px", padding: "22px 26px", marginBottom: "16px",
-    boxShadow: "0 8px 32px rgba(0, 0, 0, 0.15)", transition: "all 0.25s ease",
+    background: "rgba(30, 41, 59, 0.65)",
+    backdropFilter: "blur(14px)",
+    border: "1px solid rgba(14,165,233,0.2)",
+    borderLeft: "4px solid #0ea5e9",
+    borderRadius: "18px",
+    padding: "22px 26px",
+    marginBottom: "16px",
+    boxShadow: "0 8px 32px rgba(0, 0, 0, 0.15)",
+    transition: "all 0.25s ease",
   },
   eventCardPast: {
-    background: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.04)",
-    borderLeft: "4px solid #475569", borderRadius: "18px", padding: "20px 24px", marginBottom: "16px",
-    opacity: 0.6, transition: "all 0.25s ease",
+    background: "rgba(15, 23, 42, 0.4)",
+    backdropFilter: "blur(14px)",
+    border: "1px solid rgba(255,255,255,0.04)",
+    borderLeft: "4px solid #475569",
+    borderRadius: "18px",
+    padding: "20px 24px",
+    marginBottom: "16px",
+    opacity: 0.6,
+    transition: "all 0.25s ease",
   },
-  eventTitle: { margin: "0 0 5px", fontSize: "1.05rem", fontWeight: 700, color: "#fff" },
-  eventTitlePast: { margin: "0 0 5px", fontSize: "1.02rem", fontWeight: 700, color: "#94a3b8", textDecoration: "line-through" },
-  eventDate: { margin: "0 0 10px", fontSize: "0.8rem", color: "#38bdf8", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" },
-  eventDatePast: { margin: "0 0 10px", fontSize: "0.8rem", color: "#64748b", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" },
-  eventDesc: { margin: "0 0 16px", fontSize: "0.88rem", color: "#cbd5e1", lineHeight: 1.6 },
-  eventDescPast: { margin: "0 0 16px", fontSize: "0.88rem", color: "#64748b", lineHeight: 1.6 },
-  emptyState: { textAlign: "center", padding: "40px 0", color: "#64748b", fontSize: "0.9rem" },
+  eventTitle: {
+    margin: "0 0 5px",
+    fontSize: "1.05rem",
+    fontWeight: 700,
+    color: "#fff",
+  },
+  eventTitlePast: {
+    margin: "0 0 5px",
+    fontSize: "1.02rem",
+    fontWeight: 700,
+    color: "#94a3b8",
+    textDecoration: "line-through",
+  },
+  eventDate: {
+    margin: "0 0 10px",
+    fontSize: "0.8rem",
+    color: "#38bdf8",
+    fontWeight: 600,
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+  },
+  eventDatePast: {
+    margin: "0 0 10px",
+    fontSize: "0.8rem",
+    color: "#64748b",
+    fontWeight: 600,
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+  },
+  eventDesc: {
+    margin: "0 0 16px",
+    fontSize: "0.88rem",
+    color: "#cbd5e1",
+    lineHeight: 1.6,
+  },
+  eventDescPast: {
+    margin: "0 0 16px",
+    fontSize: "0.88rem",
+    color: "#64748b",
+    lineHeight: 1.6,
+  },
+  emptyState: {
+    textAlign: "center",
+    padding: "40px 0",
+    color: "#64748b",
+    fontSize: "0.9rem",
+  },
 
   filterRow: {
     display: "flex",
@@ -115,7 +241,7 @@ const styles = {
     padding: "18px 20px",
     borderRadius: "16px",
     border: "1px solid rgba(255,255,255,0.05)",
-    boxShadow: "0 8px 32px rgba(0,0,0,0.15)"
+    boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
   },
   filterSelect: {
     padding: "10px 14px",
@@ -164,6 +290,251 @@ const GlobalStyle = () => (
   `}</style>
 );
 
+function AnnouncementAdmin({ items, refresh }) {
+  const blank = {
+    title: "",
+    category: "General",
+    description: "",
+    publishDate: "",
+    expiryDate: "",
+    targetAudience: "Everyone",
+    isPinned: false,
+  };
+  const [form, setForm] = useState(blank);
+  const [editing, setEditing] = useState("");
+  const [pdf, setPdf] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const audiences = [
+    "Everyone",
+    "Members",
+    "Leaders",
+    "Youth",
+    "Choir",
+    "Women",
+    "Men",
+    "Children",
+    "Visitors",
+  ];
+  const change = (e) =>
+    setForm((old) => ({
+      ...old,
+      [e.target.name]:
+        e.target.type === "checkbox" ? e.target.checked : e.target.value,
+    }));
+  const reset = () => {
+    setForm(blank);
+    setEditing("");
+    setPdf(null);
+  };
+  const edit = (item) => {
+    setEditing(item._id);
+    setForm({
+      title: item.title || "",
+      category: item.category || "General",
+      description: item.description || "",
+      publishDate: item.date
+        ? new Date(item.date).toISOString().slice(0, 16)
+        : "",
+      expiryDate: item.expiryDate
+        ? new Date(item.expiryDate).toISOString().slice(0, 16)
+        : "",
+      targetAudience: item.targetAudience || "Everyone",
+      isPinned: Boolean(item.isPinned),
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const save = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const data = new FormData();
+      Object.entries(form).forEach(([key, value]) =>
+        data.append(key, String(value)),
+      );
+      if (pdf) data.append("pdf", pdf);
+      await axios({
+        method: editing ? "patch" : "post",
+        url: editing ? `/announcements/${editing}` : "/announcements",
+        data,
+      });
+      reset();
+      await refresh();
+    } catch (err) {
+      alert(err.response?.data?.message || "Announcement could not be saved.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const remove = async (item) => {
+    if (!window.confirm(`Delete announcement “${item.title}”?`)) return;
+    await axios.delete(`/events/${item._id}`);
+    await refresh();
+  };
+  const pin = async (item) => {
+    await axios.patch(`/announcements/${item._id}/pin`, {
+      isPinned: !item.isPinned,
+    });
+    await refresh();
+  };
+  const expire = async (item) => {
+    if (!window.confirm(`Expire “${item.title}” now?`)) return;
+    const data = new FormData();
+    data.append("expiryDate", new Date().toISOString());
+    await axios.patch(`/announcements/${item._id}`, data);
+    await refresh();
+  };
+  return (
+    <section
+      style={{ ...styles.glassCard, borderColor: "rgba(251,191,36,.25)" }}
+      className="no-print"
+    >
+      <h3
+        style={{
+          ...styles.sectionHeading,
+          color: "#fbbf24",
+          borderColor: "#f59e0b",
+        }}
+      >
+        Announcements — shown before events
+      </h3>
+      <form onSubmit={save}>
+        <div style={styles.formGrid}>
+          <input
+            name="title"
+            value={form.title}
+            onChange={change}
+            placeholder="Announcement title"
+            required
+            style={styles.input}
+          />
+          <input
+            name="category"
+            value={form.category}
+            onChange={change}
+            placeholder="Category"
+            required
+            style={styles.input}
+          />
+          <label>
+            Publish date
+            <input
+              name="publishDate"
+              type="datetime-local"
+              value={form.publishDate}
+              onChange={change}
+              required
+              style={styles.input}
+            />
+          </label>
+          <label>
+            Expiry date
+            <input
+              name="expiryDate"
+              type="datetime-local"
+              value={form.expiryDate}
+              onChange={change}
+              style={styles.input}
+            />
+          </label>
+          <select
+            name="targetAudience"
+            value={form.targetAudience}
+            onChange={change}
+            style={styles.input}
+          >
+            {audiences.map((a) => (
+              <option key={a}>{a}</option>
+            ))}
+          </select>
+          <label style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <input
+              name="isPinned"
+              type="checkbox"
+              checked={form.isPinned}
+              onChange={change}
+            />{" "}
+            Pin announcement
+          </label>
+        </div>
+        <textarea
+          name="description"
+          value={form.description}
+          onChange={change}
+          placeholder="Full announcement description"
+          required
+          style={styles.textarea}
+        />
+        <div style={{ marginTop: "14px", marginBottom: "14px" }}>
+          <label>
+            Attach PDF (optional)
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={(e) => setPdf(e.target.files[0] || null)}
+              style={styles.input}
+            />
+          </label>
+        </div>
+        <div style={{ display: "flex", gap: "10px" }}>
+          <button disabled={busy} style={styles.primaryBtn}>
+            {busy
+              ? "Saving..."
+              : editing
+                ? "Update Announcement"
+                : "Create Announcement"}
+          </button>
+          {editing && (
+            <button type="button" onClick={reset} style={styles.backBtn}>
+              Cancel
+            </button>
+          )}
+        </div>
+      </form>
+      <div style={{ display: "grid", gap: "10px", marginTop: "22px" }}>
+        {items
+          .sort(
+            (a, b) =>
+              Number(b.isPinned) - Number(a.isPinned) ||
+              new Date(b.date) - new Date(a.date),
+          )
+          .map((item) => (
+            <article
+              key={item._id}
+              style={{
+                padding: "14px",
+                borderRadius: "12px",
+                background: "rgba(15,23,42,.6)",
+                border: "1px solid rgba(255,255,255,.08)",
+              }}
+            >
+              <b>
+                {item.isPinned ? "Pinned · " : ""}
+                {item.title}
+              </b>
+              <p style={{ color: "#94a3b8", margin: "6px 0" }}>
+                {item.category} · {item.targetAudience} · Publishes{" "}
+                {formatUploadDate(item.date)}
+                {item.expiryDate
+                  ? ` · Expires ${formatUploadDate(item.expiryDate)}`
+                  : ""}
+              </p>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button onClick={() => edit(item)}>Edit</button>
+                <button onClick={() => pin(item)}>
+                  {item.isPinned ? "Unpin" : "Pin"}
+                </button>
+                <button onClick={() => expire(item)}>Expire now</button>
+                <button onClick={() => remove(item)} style={styles.deleteBtn}>
+                  Delete
+                </button>
+              </div>
+            </article>
+          ))}
+      </div>
+    </section>
+  );
+}
+
 function AdminEvents() {
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
@@ -209,7 +580,8 @@ function AdminEvents() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    return events.filter(event => {
+    return events.filter((event) => {
+      if (event.contentType === "announcement") return false;
       // 1. Search Query
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
@@ -250,7 +622,7 @@ function AdminEvents() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const upcomingCount = filtered.filter(
-      (event) => getEventStatus(event, today) === "Upcoming"
+      (event) => getEventStatus(event, today) === "Upcoming",
     ).length;
 
     downloadCsvReport({
@@ -284,7 +656,7 @@ function AdminEvents() {
         Past: filtered.length - upcomingCount,
         "Total registrations": filtered.reduce(
           (sum, event) => sum + getAttendeeCount(event),
-          0
+          0,
         ),
       },
     });
@@ -295,7 +667,7 @@ function AdminEvents() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const upcomingCount = filtered.filter(
-      (event) => getEventStatus(event, today) === "Upcoming"
+      (event) => getEventStatus(event, today) === "Upcoming",
     ).length;
     return {
       title: "Events and Programs Report",
@@ -307,7 +679,7 @@ function AdminEvents() {
         Past: filtered.length - upcomingCount,
         Registrations: filtered.reduce(
           (sum, event) => sum + getAttendeeCount(event),
-          0
+          0,
         ),
       },
       columns: [
@@ -318,7 +690,10 @@ function AdminEvents() {
         { label: "Location", value: (event) => event.location || "—" },
         { label: "Time", value: (event) => event.time || "—" },
         { label: "Attendees", value: getAttendeeCount },
-        { label: "Uploaded", value: (event) => formatReportDate(event.createdAt, true) },
+        {
+          label: "Uploaded",
+          value: (event) => formatReportDate(event.createdAt, true),
+        },
         { label: "Description", value: (event) => event.description || "—" },
       ],
       rows: filtered,
@@ -359,8 +734,15 @@ function AdminEvents() {
       },
       columns: [
         { label: "Name", value: (attendee) => attendee.name || "—" },
-        { label: "Member ID", value: (attendee) => attendee.memberId || "Guest" },
-        { label: "National ID (masked)", value: (attendee) => maskSensitiveId(attendee.idNo || attendee.idNumber) },
+        {
+          label: "Member ID",
+          value: (attendee) => attendee.memberId || "Guest",
+        },
+        {
+          label: "National ID (masked)",
+          value: (attendee) =>
+            maskSensitiveId(attendee.idNo || attendee.idNumber),
+        },
         { label: "Phone", value: (attendee) => attendee.phone || "—" },
       ],
       rows: attendees,
@@ -381,14 +763,18 @@ function AdminEvents() {
       const res = await axios.get("/api/admin/events");
       setEvents(res.data);
     } catch (requestError) {
-      setError(requestError.response?.data?.message || "Events could not be refreshed.");
+      setError(
+        requestError.response?.data?.message ||
+          "Events could not be refreshed.",
+      );
     }
   };
 
   useEffect(() => {
     let active = true;
 
-    axios.get("/api/admin/events")
+    axios
+      .get("/api/admin/events")
       .then((res) => {
         if (active) {
           setEvents(res.data);
@@ -400,7 +786,10 @@ function AdminEvents() {
         if ([401, 403].includes(requestError.response?.status)) {
           navigate("/admin-login");
         } else {
-          setError(requestError.response?.data?.message || "Events could not be loaded. Check the connection and retry.");
+          setError(
+            requestError.response?.data?.message ||
+              "Events could not be loaded. Check the connection and retry.",
+          );
         }
       })
       .finally(() => {
@@ -412,13 +801,19 @@ function AdminEvents() {
     };
   }, [navigate]);
 
-  useEffect(() => () => {
-    if (bannerPreview.startsWith("blob:")) URL.revokeObjectURL(bannerPreview);
-  }, [bannerPreview]);
+  useEffect(
+    () => () => {
+      if (bannerPreview.startsWith("blob:")) URL.revokeObjectURL(bannerPreview);
+    },
+    [bannerPreview],
+  );
 
   const shareToWhatsApp = (eventData) => {
     const formattedDate = new Date(eventData.date).toLocaleDateString("en-US", {
-      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
 
     const message =
@@ -489,7 +884,9 @@ function AdminEvents() {
     today.setHours(0, 0, 0, 0);
 
     if (!editingId && selectedDate < today) {
-      alert("Cannot publish an event with a past date. Please select today or a future date.");
+      alert(
+        "Cannot publish an event with a past date. Please select today or a future date.",
+      );
       return;
     }
 
@@ -509,12 +906,21 @@ function AdminEvents() {
       const response = editingId
         ? await axios.patch(`/events/${editingId}`, formData)
         : await axios.post("/events", formData);
-      const savedEvent = response.data?.event || { title, date, description, location, time };
+      const savedEvent = response.data?.event || {
+        title,
+        date,
+        description,
+        location,
+        time,
+      };
       if (!editingId) setLastCreatedEvent(savedEvent);
       resetEventForm();
       await fetchEvents();
     } catch (requestError) {
-      setError(requestError.response?.data?.message || `Event could not be ${editingId ? "updated" : "created"}.`);
+      setError(
+        requestError.response?.data?.message ||
+          `Event could not be ${editingId ? "updated" : "created"}.`,
+      );
     } finally {
       setSaving(false);
     }
@@ -522,14 +928,22 @@ function AdminEvents() {
 
   const deleteEvent = async (id) => {
     const event = events.find((item) => item._id === id);
-    if (!window.confirm(`Permanently delete "${event?.title || "this event"}" and its attendee register? This cannot be undone.`)) return;
+    if (
+      !window.confirm(
+        `Permanently delete "${event?.title || "this event"}" and its attendee register? This cannot be undone.`,
+      )
+    )
+      return;
     setDeletingId(id);
     setError("");
     try {
       await axios.delete(`/events/${id}`);
       await fetchEvents();
     } catch (requestError) {
-      setError(requestError.response?.data?.message || "The event could not be deleted.");
+      setError(
+        requestError.response?.data?.message ||
+          "The event could not be deleted.",
+      );
     } finally {
       setDeletingId("");
     }
@@ -540,66 +954,183 @@ function AdminEvents() {
       <GlobalStyle />
       <header style={styles.header} className="no-print">
         <div style={styles.headerLeft}>
-          <div style={{
-            width: "40px", height: "40px",
-            background: "linear-gradient(135deg, rgba(14,165,233,0.2), rgba(56,189,248,0.1))",
-            borderRadius: "10px",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: "18px",
-            border: "1px solid rgba(14,165,233,0.3)",
-          }}>📅</div>
+          <div
+            style={{
+              width: "40px",
+              height: "40px",
+              background:
+                "linear-gradient(135deg, rgba(14,165,233,0.2), rgba(56,189,248,0.1))",
+              borderRadius: "10px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "18px",
+              border: "1px solid rgba(14,165,233,0.3)",
+            }}
+          >
+            📅
+          </div>
           <div>
             <h2 style={styles.headerTitle}>Manage Events</h2>
-            <p style={styles.headerSubtitle}>Create &amp; publish church events</p>
+            <p style={styles.headerSubtitle}>
+              Create &amp; publish church events
+            </p>
           </div>
         </div>
-        <button className="back-btn" onClick={() => navigate("/admin-dashboard")} style={styles.backBtn}>
+        <button
+          className="back-btn"
+          onClick={() => navigate("/admin-dashboard")}
+          style={styles.backBtn}
+        >
           ← Back to Dashboard
         </button>
       </header>
 
       <main style={styles.main}>
+        <AnnouncementAdmin
+          items={events.filter((item) => item.contentType === "announcement")}
+          refresh={fetchEvents}
+        />
         {error && (
-          <div role="alert" style={{ marginBottom: "18px", padding: "13px 15px", borderRadius: "12px", background: "rgba(239,68,68,0.12)", border: "1px solid rgba(248,113,113,0.24)", color: "#fecaca", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+          <div
+            role="alert"
+            style={{
+              marginBottom: "18px",
+              padding: "13px 15px",
+              borderRadius: "12px",
+              background: "rgba(239,68,68,0.12)",
+              border: "1px solid rgba(248,113,113,0.24)",
+              color: "#fecaca",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
+          >
             <span>{error}</span>
-            <button type="button" onClick={fetchEvents} style={{ ...styles.backBtn, padding: "7px 12px" }}>Retry</button>
+            <button
+              type="button"
+              onClick={fetchEvents}
+              style={{ ...styles.backBtn, padding: "7px 12px" }}
+            >
+              Retry
+            </button>
           </div>
         )}
 
         {lastCreatedEvent && (
-          <div role="status" className="no-print" style={{ marginBottom: "18px", padding: "13px 15px", borderRadius: "12px", background: "rgba(34,197,94,0.1)", border: "1px solid rgba(74,222,128,0.22)", color: "#bbf7d0", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-            <span><strong>{lastCreatedEvent.title}</strong> was published successfully.</span>
-            <button type="button" onClick={() => shareToWhatsApp(lastCreatedEvent)} style={styles.shareBtn}>Share to WhatsApp</button>
+          <div
+            role="status"
+            className="no-print"
+            style={{
+              marginBottom: "18px",
+              padding: "13px 15px",
+              borderRadius: "12px",
+              background: "rgba(34,197,94,0.1)",
+              border: "1px solid rgba(74,222,128,0.22)",
+              color: "#bbf7d0",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <span>
+              <strong>{lastCreatedEvent.title}</strong> was published
+              successfully.
+            </span>
+            <button
+              type="button"
+              onClick={() => shareToWhatsApp(lastCreatedEvent)}
+              style={styles.shareBtn}
+            >
+              Share to WhatsApp
+            </button>
           </div>
         )}
 
         {/* Print Header */}
-        <div className="print-only" style={{ display: "none", textAlign: "center", marginBottom: "40px" }}>
-          <h1 style={{ color: "#0369a1", margin: "0 0 5px", fontFamily: "'Poppins', sans-serif" }}>Outreach Hope Church</h1>
-          <h2 style={{ color: "#475569", fontSize: "1.2rem", margin: 0, fontFamily: "'Poppins', sans-serif" }}>Events &amp; Programs Report</h2>
-          <p style={{ fontSize: "0.8rem", color: "#94a3b8" }}>Generated on: {new Date().toLocaleString()}</p>
+        <div
+          className="print-only"
+          style={{ display: "none", textAlign: "center", marginBottom: "40px" }}
+        >
+          <h1
+            style={{
+              color: "#0369a1",
+              margin: "0 0 5px",
+              fontFamily: "'Poppins', sans-serif",
+            }}
+          >
+            Outreach Hope Church
+          </h1>
+          <h2
+            style={{
+              color: "#475569",
+              fontSize: "1.2rem",
+              margin: 0,
+              fontFamily: "'Poppins', sans-serif",
+            }}
+          >
+            Events &amp; Programs Report
+          </h2>
+          <p style={{ fontSize: "0.8rem", color: "#94a3b8" }}>
+            Generated on: {new Date().toLocaleString()}
+          </p>
         </div>
 
         {/* Create Event Form */}
         <div style={styles.glassCard} className="no-print">
-          <h3 style={styles.sectionHeading}>{editingId ? "Edit Event" : "Post a New Event"}</h3>
+          <h3 style={styles.sectionHeading}>
+            {editingId ? "Edit Event" : "Post a New Event"}
+          </h3>
           <div style={styles.formGrid}>
-            <input className="dash-input" placeholder="Event Title" value={title} onChange={(e) => setTitle(e.target.value)} style={styles.input} />
+            <input
+              className="dash-input"
+              placeholder="Event Title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              style={styles.input}
+            />
             <input
               className="dash-input"
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              min={editingId ? undefined : new Date().toISOString().split("T")[0]}
+              min={
+                editingId ? undefined : new Date().toISOString().split("T")[0]
+              }
               style={styles.input}
             />
           </div>
           <div style={styles.formGrid}>
-            <input className="dash-input" placeholder="Location (for example, Main Sanctuary)" value={location} onChange={(event) => setLocation(event.target.value)} style={styles.input} />
-            <input className="dash-input" type="time" aria-label="Event time" value={time} onChange={(event) => setTime(event.target.value)} style={styles.input} />
+            <input
+              className="dash-input"
+              placeholder="Location (for example, Main Sanctuary)"
+              value={location}
+              onChange={(event) => setLocation(event.target.value)}
+              style={styles.input}
+            />
+            <input
+              className="dash-input"
+              type="time"
+              aria-label="Event time"
+              value={time}
+              onChange={(event) => setTime(event.target.value)}
+              style={styles.input}
+            />
           </div>
           <div style={{ marginBottom: "14px" }}>
-            <label style={{ display: "block", marginBottom: "6px", fontSize: "0.85rem", color: "#94a3b8", fontWeight: 600 }}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "6px",
+                fontSize: "0.85rem",
+                color: "#94a3b8",
+                fontWeight: 600,
+              }}
+            >
               Event Banner Image (optional)
             </label>
             <input
@@ -609,25 +1140,78 @@ function AdminEvents() {
               style={{ ...styles.input, padding: "8px", fontSize: "0.85rem" }}
             />
             {bannerPreview && (
-              <div style={{ marginTop: "10px", borderRadius: "10px", overflow: "hidden", maxHeight: "180px" }}>
-                <img src={bannerPreview} alt="Banner preview" style={{ width: "100%", objectFit: "cover", maxHeight: "180px", borderRadius: "10px" }} />
+              <div
+                style={{
+                  marginTop: "10px",
+                  borderRadius: "10px",
+                  overflow: "hidden",
+                  maxHeight: "180px",
+                }}
+              >
+                <img
+                  src={bannerPreview}
+                  alt="Banner preview"
+                  style={{
+                    width: "100%",
+                    objectFit: "cover",
+                    maxHeight: "180px",
+                    borderRadius: "10px",
+                  }}
+                />
               </div>
             )}
           </div>
-          <textarea className="dash-input" placeholder="Event description…" value={description} onChange={(e) => setDescription(e.target.value)} style={styles.textarea} />
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "14px" }}>
-            <button className="primary-btn" disabled={saving} onClick={createEvent} style={{ ...styles.primaryBtn, opacity: saving ? 0.65 : 1 }}>
-              {saving ? "Saving…" : editingId ? "Save Event Changes" : "Publish Event"}
+          <textarea
+            className="dash-input"
+            placeholder="Event description…"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            style={styles.textarea}
+          />
+          <div
+            style={{
+              display: "flex",
+              gap: "10px",
+              flexWrap: "wrap",
+              marginTop: "14px",
+            }}
+          >
+            <button
+              className="primary-btn"
+              disabled={saving}
+              onClick={createEvent}
+              style={{ ...styles.primaryBtn, opacity: saving ? 0.65 : 1 }}
+            >
+              {saving
+                ? "Saving…"
+                : editingId
+                  ? "Save Event Changes"
+                  : "Publish Event"}
             </button>
             {editingId && (
-              <button type="button" onClick={resetEventForm} disabled={saving} style={styles.backBtn}>Cancel editing</button>
+              <button
+                type="button"
+                onClick={resetEventForm}
+                disabled={saving}
+                style={styles.backBtn}
+              >
+                Cancel editing
+              </button>
             )}
           </div>
         </div>
 
         {/* Dynamic Filters & Modern Report Panel */}
         <div style={styles.filterRow} className="no-print">
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", flex: 1, alignItems: "center" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "10px",
+              flexWrap: "wrap",
+              flex: 1,
+              alignItems: "center",
+            }}
+          >
             <input
               className="dash-input"
               placeholder="🔍 Search title or desc..."
@@ -647,7 +1231,15 @@ function AdminEvents() {
             </select>
 
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ fontSize: "0.8rem", color: "#38bdf8", fontWeight: 600 }}>From:</span>
+              <span
+                style={{
+                  fontSize: "0.8rem",
+                  color: "#38bdf8",
+                  fontWeight: 600,
+                }}
+              >
+                From:
+              </span>
               <input
                 className="dash-input"
                 type="date"
@@ -655,7 +1247,15 @@ function AdminEvents() {
                 onChange={(e) => setStartDate(e.target.value)}
                 style={{ ...styles.input, width: "135px", padding: "6px 10px" }}
               />
-              <span style={{ fontSize: "0.8rem", color: "#38bdf8", fontWeight: 600 }}>To:</span>
+              <span
+                style={{
+                  fontSize: "0.8rem",
+                  color: "#38bdf8",
+                  fontWeight: 600,
+                }}
+              >
+                To:
+              </span>
               <input
                 className="dash-input"
                 type="date"
@@ -667,247 +1267,752 @@ function AdminEvents() {
           </div>
 
           <div style={{ display: "flex", gap: "8px" }}>
-            <button style={{ ...styles.downloadBtn, background: "linear-gradient(90deg, #10b981, #059669)" }} onClick={downloadEventsCSV}>📊 CSV</button>
-            <button style={styles.downloadBtn} onClick={downloadEventsWord}>📄 Word Doc</button>
-            <button style={{ ...styles.downloadBtn, background: "linear-gradient(90deg, #be123c, #e11d48)" }} onClick={handlePrint}>PDF Report</button>
+            <button
+              style={{
+                ...styles.downloadBtn,
+                background: "linear-gradient(90deg, #10b981, #059669)",
+              }}
+              onClick={downloadEventsCSV}
+            >
+              📊 CSV
+            </button>
+            <button style={styles.downloadBtn} onClick={downloadEventsWord}>
+              📄 Word Doc
+            </button>
+            <button
+              style={{
+                ...styles.downloadBtn,
+                background: "linear-gradient(90deg, #be123c, #e11d48)",
+              }}
+              onClick={handlePrint}
+            >
+              PDF Report
+            </button>
           </div>
         </div>
 
         {/* Events List - Split by Date & Filters */}
         {loading ? (
-          <div role="status" style={styles.emptyState}><p>Loading events and attendee records…</p></div>
-        ) : (() => {
-          const filtered = getFilteredEvents();
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
+          <div role="status" style={styles.emptyState}>
+            <p>Loading events and attendee records…</p>
+          </div>
+        ) : (
+          (() => {
+            const filtered = getFilteredEvents();
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
 
-          const upcomingEvents = filtered.filter(event => {
-            const evDate = new Date(event.date);
-            evDate.setHours(0, 0, 0, 0);
-            return evDate >= today;
-          });
+            const upcomingEvents = filtered.filter((event) => {
+              const evDate = new Date(event.date);
+              evDate.setHours(0, 0, 0, 0);
+              return evDate >= today;
+            });
 
-          const pastEvents = filtered.filter(event => {
-            const evDate = new Date(event.date);
-            evDate.setHours(0, 0, 0, 0);
-            return evDate < today;
-          });
+            const pastEvents = filtered.filter((event) => {
+              const evDate = new Date(event.date);
+              evDate.setHours(0, 0, 0, 0);
+              return evDate < today;
+            });
 
-          return (
-            <>
-              {/* Upcoming Events */}
-              {(filterType === "All" || filterType === "Upcoming") && (
-                <div style={{ marginBottom: "32px" }}>
-                  <h3 style={styles.sectionHeading}>
-                    Upcoming Events
-                    <span style={{ background: "linear-gradient(90deg,#0369a1,#0ea5e9)", color: "#fff", borderRadius: "999px", padding: "2px 12px", fontSize: "0.75rem", fontWeight: 700, marginLeft: "10px" }}>
-                      {upcomingEvents.length}
-                    </span>
-                  </h3>
-                  {upcomingEvents.length === 0 ? (
-                    <div style={styles.emptyState}><p>No upcoming events match the current criteria.</p></div>
-                  ) : (
-                    upcomingEvents.map((event) => (
-                      <div className="event-card-active-hover" key={event._id} style={styles.eventCardActive}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px", flexWrap: "wrap", marginBottom: "8px" }}>
-                          <div>
-                            <h4 style={styles.eventTitle}>{event.title} <span style={{ fontSize: "0.8rem", color: "#94a3b8", fontWeight: 400 }}>({event.eventCode || "N/A"})</span></h4>
-                            <p style={{ margin: "0 0 6px", color: "#94a3b8", fontSize: "0.74rem" }}>Uploaded: {formatUploadDate(event.createdAt)}</p>
-                            <p style={styles.eventDate}>
-                              <span>📅</span> {new Date(event.date).toLocaleDateString("en-US", { weekday: 'long', year: "numeric", month: "long", day: "numeric" })}
-                            </p>
-                          </div>
-                          <span style={{
-                            fontSize: "0.68rem", fontWeight: 700,
-                            padding: "4px 10px", borderRadius: "999px",
-                            background: "rgba(14,165,233,0.15)",
-                            color: "#38bdf8",
-                            border: "1px solid rgba(14,165,233,0.25)",
-                            letterSpacing: "0.05em"
-                          }}>
-                            ⚡ ACTIVE
-                          </span>
-                        </div>
-                        {event.banner && (
-                          <div style={{ marginBottom: "12px", borderRadius: "10px", overflow: "hidden", maxHeight: "200px" }}>
-                            <img src={event.banner} alt={`${event.title} banner`} style={{ width: "100%", objectFit: "cover", maxHeight: "200px", borderRadius: "10px" }} />
-                          </div>
-                        )}
-                        <p style={styles.eventDesc}>{event.description}</p>
-                        {(event.location || event.time) && (
-                          <p style={{ margin: "8px 0 0", color: "#94a3b8", fontSize: "0.78rem" }}>
-                            {event.location ? `Location: ${event.location}` : ""}{event.location && event.time ? " · " : ""}{event.time ? `Time: ${event.time}` : ""}
-                          </p>
-                        )}
-
-                        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }} className="no-print">
-                          {(event.attendeesCount > 0 || (event.attendees && event.attendees.length > 0)) && (
-                            <button
-                              onClick={() => setShowAttendeesFor(showAttendeesFor === event._id ? null : event._id)}
+            return (
+              <>
+                {/* Upcoming Events */}
+                {(filterType === "All" || filterType === "Upcoming") && (
+                  <div style={{ marginBottom: "32px" }}>
+                    <h3 style={styles.sectionHeading}>
+                      Upcoming Events
+                      <span
+                        style={{
+                          background: "linear-gradient(90deg,#0369a1,#0ea5e9)",
+                          color: "#fff",
+                          borderRadius: "999px",
+                          padding: "2px 12px",
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          marginLeft: "10px",
+                        }}
+                      >
+                        {upcomingEvents.length}
+                      </span>
+                    </h3>
+                    {upcomingEvents.length === 0 ? (
+                      <div style={styles.emptyState}>
+                        <p>No upcoming events match the current criteria.</p>
+                      </div>
+                    ) : (
+                      upcomingEvents.map((event) => (
+                        <div
+                          className="event-card-active-hover"
+                          key={event._id}
+                          style={styles.eventCardActive}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "flex-start",
+                              gap: "10px",
+                              flexWrap: "wrap",
+                              marginBottom: "8px",
+                            }}
+                          >
+                            <div>
+                              <h4 style={styles.eventTitle}>
+                                {event.title}{" "}
+                                <span
+                                  style={{
+                                    fontSize: "0.8rem",
+                                    color: "#94a3b8",
+                                    fontWeight: 400,
+                                  }}
+                                >
+                                  ({event.eventCode || "N/A"})
+                                </span>
+                              </h4>
+                              <p
+                                style={{
+                                  margin: "0 0 6px",
+                                  color: "#94a3b8",
+                                  fontSize: "0.74rem",
+                                }}
+                              >
+                                Uploaded: {formatUploadDate(event.createdAt)}
+                              </p>
+                              <p style={styles.eventDate}>
+                                <span>📅</span>{" "}
+                                {new Date(event.date).toLocaleDateString(
+                                  "en-US",
+                                  {
+                                    weekday: "long",
+                                    year: "numeric",
+                                    month: "long",
+                                    day: "numeric",
+                                  },
+                                )}
+                              </p>
+                            </div>
+                            <span
                               style={{
-                                background: "rgba(14, 165, 233, 0.1)", color: "#38bdf8", border: "1px solid rgba(14, 165, 233, 0.2)",
-                                borderRadius: "8px", padding: "7px 16px", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600
+                                fontSize: "0.68rem",
+                                fontWeight: 700,
+                                padding: "4px 10px",
+                                borderRadius: "999px",
+                                background: "rgba(14,165,233,0.15)",
+                                color: "#38bdf8",
+                                border: "1px solid rgba(14,165,233,0.25)",
+                                letterSpacing: "0.05em",
                               }}
                             >
-                              👥 Attendees ({event.attendees ? event.attendees.length : event.attendeesCount})
-                            </button>
-                          )}
-                          <button className="share-btn" onClick={() => shareToWhatsApp(event)} style={styles.shareBtn}>
-                            💬 Re-Share to WhatsApp
-                          </button>
-                          <button type="button" onClick={() => editEvent(event)} style={styles.backBtn}>
-                            Edit Event
-                          </button>
-                          <button className="delete-btn" disabled={deletingId === event._id} onClick={() => deleteEvent(event._id)} style={{ ...styles.deleteBtn, opacity: deletingId === event._id ? 0.6 : 1 }}>
-                            {deletingId === event._id ? "Deleting…" : "🗑️ Delete Event"}
-                          </button>
-                        </div>
-
-                        {showAttendeesFor === event._id && event.attendees && event.attendees.length > 0 && (
-                          <div style={{ marginTop: "16px", padding: "16px", background: "rgba(15, 23, 42, 0.6)", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.05)" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                              <h5 style={{ margin: 0, color: "#38bdf8", fontSize: "0.85rem" }}>Attendee Record</h5>
-                              <button
-                                onClick={() => downloadAttendeesReport(event)}
-                                style={{ background: "linear-gradient(90deg, #10b981, #059669)", color: "#fff", border: "none", borderRadius: "6px", padding: "4px 10px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer" }}
-                              >
-                                ⬇ Download Report
-                              </button>
-                            </div>
-                            <table style={{ width: "100%", fontSize: "0.8rem", color: "#cbd5e1", borderCollapse: "collapse", textAlign: "left" }}>
-                              <thead>
-                                <tr>
-                                  <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Name</th>
-                                  <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Member ID</th>
-                                  <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>National ID (masked)</th>
-                                  <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Phone</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {event.attendees.map((a, i) => (
-                                  <tr key={i}>
-                                    <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.name}</td>
-                                    <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.memberId || "N/A"}</td>
-                                    <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{maskSensitiveId(a.idNo || a.idNumber)}</td>
-                                    <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.phone}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                              ⚡ ACTIVE
+                            </span>
                           </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-
-              {/* Past Events */}
-              {(filterType === "All" || filterType === "Past") && (
-                <div>
-                  <h3 style={{ ...styles.sectionHeading, marginTop: "20px", borderLeftColor: "#475569", color: "#94a3b8" }}>
-                    Past Events (Archived)
-                    <span style={{ background: "linear-gradient(90deg,#475569,#64748b)", color: "#fff", borderRadius: "999px", padding: "2px 12px", fontSize: "0.75rem", fontWeight: 700, marginLeft: "10px" }}>
-                      {pastEvents.length}
-                    </span>
-                  </h3>
-                  {pastEvents.length === 0 ? (
-                    <div style={styles.emptyState}><p>No past events match the current criteria.</p></div>
-                  ) : (
-                    pastEvents.map((event) => (
-                      <div className="event-card-past-hover" key={event._id} style={styles.eventCardPast}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px", flexWrap: "wrap", marginBottom: "8px" }}>
-                          <div>
-                            <h4 style={styles.eventTitlePast}>{event.title} <span style={{ fontSize: "0.8rem", color: "#64748b", fontWeight: 400, textDecoration: "none" }}>({event.eventCode || "N/A"})</span></h4>
-                            <p style={{ margin: "0 0 6px", color: "#64748b", fontSize: "0.74rem" }}>Uploaded: {formatUploadDate(event.createdAt)}</p>
-                            <p style={styles.eventDatePast}>
-                              <span>📁</span> {new Date(event.date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })} (Passed)
-                            </p>
-                          </div>
-                          <span style={{
-                            fontSize: "0.68rem", fontWeight: 700,
-                            padding: "4px 10px", borderRadius: "999px",
-                            background: "rgba(100,116,139,0.1)",
-                            color: "#64748b",
-                            border: "1px solid rgba(100,116,139,0.15)",
-                            letterSpacing: "0.05em"
-                          }}>
-                            PASSED
-                          </span>
-                        </div>
-                        {event.banner && (
-                          <div style={{ marginBottom: "12px", borderRadius: "10px", overflow: "hidden", maxHeight: "150px", opacity: 0.8 }}>
-                            <img src={event.banner} alt={`${event.title} banner`} style={{ width: "100%", objectFit: "cover", maxHeight: "150px", borderRadius: "10px" }} />
-                          </div>
-                        )}
-                        <p style={styles.eventDescPast}>{event.description}</p>
-                        {(event.location || event.time) && (
-                          <p style={{ margin: "8px 0 0", color: "#64748b", fontSize: "0.78rem" }}>
-                            {event.location ? `Location: ${event.location}` : ""}{event.location && event.time ? " · " : ""}{event.time ? `Time: ${event.time}` : ""}
-                          </p>
-                        )}
-
-                        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }} className="no-print">
-                          {(event.attendeesCount > 0 || (event.attendees && event.attendees.length > 0)) && (
-                            <button
-                              onClick={() => setShowAttendeesFor(showAttendeesFor === event._id ? null : event._id)}
+                          {event.banner && (
+                            <div
                               style={{
-                                background: "rgba(100, 116, 139, 0.1)", color: "#94a3b8", border: "1px solid rgba(100, 116, 139, 0.2)",
-                                borderRadius: "8px", padding: "7px 16px", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600
+                                marginBottom: "12px",
+                                borderRadius: "10px",
+                                overflow: "hidden",
+                                maxHeight: "200px",
                               }}
                             >
-                              👥 View Attendees ({event.attendees ? event.attendees.length : event.attendeesCount})
-                            </button>
-                          )}
-                          <button type="button" onClick={() => editEvent(event)} style={styles.backBtn}>
-                            Edit Event
-                          </button>
-                          <button className="delete-btn" disabled={deletingId === event._id} onClick={() => deleteEvent(event._id)} style={{ ...styles.deleteBtn, opacity: deletingId === event._id ? 0.6 : 1 }}>
-                            {deletingId === event._id ? "Deleting…" : "🗑️ Delete Event"}
-                          </button>
-                        </div>
-
-                        {showAttendeesFor === event._id && event.attendees && event.attendees.length > 0 && (
-                          <div style={{ marginTop: "16px", padding: "16px", background: "rgba(15, 23, 42, 0.6)", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.05)" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                              <h5 style={{ margin: 0, color: "#94a3b8", fontSize: "0.85rem" }}>Attendee Record</h5>
-                              <button
-                                onClick={() => downloadAttendeesReport(event)}
-                                style={{ background: "linear-gradient(90deg, #10b981, #059669)", color: "#fff", border: "none", borderRadius: "6px", padding: "4px 10px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer" }}
-                              >
-                                ⬇ Download Report
-                              </button>
+                              <img
+                                src={event.banner}
+                                alt={`${event.title} banner`}
+                                style={{
+                                  width: "100%",
+                                  objectFit: "cover",
+                                  maxHeight: "200px",
+                                  borderRadius: "10px",
+                                }}
+                              />
                             </div>
-                            <table style={{ width: "100%", fontSize: "0.8rem", color: "#94a3b8", borderCollapse: "collapse", textAlign: "left" }}>
-                              <thead>
-                                <tr>
-                                  <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Name</th>
-                                  <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Member ID</th>
-                                  <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>National ID (masked)</th>
-                                  <th style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Phone</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {event.attendees.map((a, i) => (
-                                  <tr key={i}>
-                                    <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.name}</td>
-                                    <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.memberId || "N/A"}</td>
-                                    <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{maskSensitiveId(a.idNo || a.idNumber)}</td>
-                                    <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{a.phone}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                          )}
+                          <p style={styles.eventDesc}>{event.description}</p>
+                          {(event.location || event.time) && (
+                            <p
+                              style={{
+                                margin: "8px 0 0",
+                                color: "#94a3b8",
+                                fontSize: "0.78rem",
+                              }}
+                            >
+                              {event.location
+                                ? `Location: ${event.location}`
+                                : ""}
+                              {event.location && event.time ? " · " : ""}
+                              {event.time ? `Time: ${event.time}` : ""}
+                            </p>
+                          )}
+
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "10px",
+                              flexWrap: "wrap",
+                              marginTop: "12px",
+                            }}
+                            className="no-print"
+                          >
+                            {(event.attendeesCount > 0 ||
+                              (event.attendees &&
+                                event.attendees.length > 0)) && (
+                              <button
+                                onClick={() =>
+                                  setShowAttendeesFor(
+                                    showAttendeesFor === event._id
+                                      ? null
+                                      : event._id,
+                                  )
+                                }
+                                style={{
+                                  background: "rgba(14, 165, 233, 0.1)",
+                                  color: "#38bdf8",
+                                  border: "1px solid rgba(14, 165, 233, 0.2)",
+                                  borderRadius: "8px",
+                                  padding: "7px 16px",
+                                  cursor: "pointer",
+                                  fontSize: "0.8rem",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                👥 Attendees (
+                                {event.attendees
+                                  ? event.attendees.length
+                                  : event.attendeesCount}
+                                )
+                              </button>
+                            )}
+                            <button
+                              className="share-btn"
+                              onClick={() => shareToWhatsApp(event)}
+                              style={styles.shareBtn}
+                            >
+                              💬 Re-Share to WhatsApp
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => editEvent(event)}
+                              style={styles.backBtn}
+                            >
+                              Edit Event
+                            </button>
+                            <button
+                              className="delete-btn"
+                              disabled={deletingId === event._id}
+                              onClick={() => deleteEvent(event._id)}
+                              style={{
+                                ...styles.deleteBtn,
+                                opacity: deletingId === event._id ? 0.6 : 1,
+                              }}
+                            >
+                              {deletingId === event._id
+                                ? "Deleting…"
+                                : "🗑️ Delete Event"}
+                            </button>
                           </div>
-                        )}
+
+                          {showAttendeesFor === event._id &&
+                            event.attendees &&
+                            event.attendees.length > 0 && (
+                              <div
+                                style={{
+                                  marginTop: "16px",
+                                  padding: "16px",
+                                  background: "rgba(15, 23, 42, 0.6)",
+                                  borderRadius: "10px",
+                                  border: "1px solid rgba(255,255,255,0.05)",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    marginBottom: "12px",
+                                  }}
+                                >
+                                  <h5
+                                    style={{
+                                      margin: 0,
+                                      color: "#38bdf8",
+                                      fontSize: "0.85rem",
+                                    }}
+                                  >
+                                    Attendee Record
+                                  </h5>
+                                  <button
+                                    onClick={() =>
+                                      downloadAttendeesReport(event)
+                                    }
+                                    style={{
+                                      background:
+                                        "linear-gradient(90deg, #10b981, #059669)",
+                                      color: "#fff",
+                                      border: "none",
+                                      borderRadius: "6px",
+                                      padding: "4px 10px",
+                                      fontSize: "0.75rem",
+                                      fontWeight: 600,
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    ⬇ Download Report
+                                  </button>
+                                </div>
+                                <table
+                                  style={{
+                                    width: "100%",
+                                    fontSize: "0.8rem",
+                                    color: "#cbd5e1",
+                                    borderCollapse: "collapse",
+                                    textAlign: "left",
+                                  }}
+                                >
+                                  <thead>
+                                    <tr>
+                                      <th
+                                        style={{
+                                          paddingBottom: "8px",
+                                          borderBottom:
+                                            "1px solid rgba(255,255,255,0.1)",
+                                        }}
+                                      >
+                                        Name
+                                      </th>
+                                      <th
+                                        style={{
+                                          paddingBottom: "8px",
+                                          borderBottom:
+                                            "1px solid rgba(255,255,255,0.1)",
+                                        }}
+                                      >
+                                        Member ID
+                                      </th>
+                                      <th
+                                        style={{
+                                          paddingBottom: "8px",
+                                          borderBottom:
+                                            "1px solid rgba(255,255,255,0.1)",
+                                        }}
+                                      >
+                                        National ID (masked)
+                                      </th>
+                                      <th
+                                        style={{
+                                          paddingBottom: "8px",
+                                          borderBottom:
+                                            "1px solid rgba(255,255,255,0.1)",
+                                        }}
+                                      >
+                                        Phone
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {event.attendees.map((a, i) => (
+                                      <tr key={i}>
+                                        <td
+                                          style={{
+                                            padding: "8px 0",
+                                            borderBottom:
+                                              "1px solid rgba(255,255,255,0.05)",
+                                          }}
+                                        >
+                                          {a.name}
+                                        </td>
+                                        <td
+                                          style={{
+                                            padding: "8px 0",
+                                            borderBottom:
+                                              "1px solid rgba(255,255,255,0.05)",
+                                          }}
+                                        >
+                                          {a.memberId || "N/A"}
+                                        </td>
+                                        <td
+                                          style={{
+                                            padding: "8px 0",
+                                            borderBottom:
+                                              "1px solid rgba(255,255,255,0.05)",
+                                          }}
+                                        >
+                                          {maskSensitiveId(
+                                            a.idNo || a.idNumber,
+                                          )}
+                                        </td>
+                                        <td
+                                          style={{
+                                            padding: "8px 0",
+                                            borderBottom:
+                                              "1px solid rgba(255,255,255,0.05)",
+                                          }}
+                                        >
+                                          {a.phone}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                {/* Past Events */}
+                {(filterType === "All" || filterType === "Past") && (
+                  <div>
+                    <h3
+                      style={{
+                        ...styles.sectionHeading,
+                        marginTop: "20px",
+                        borderLeftColor: "#475569",
+                        color: "#94a3b8",
+                      }}
+                    >
+                      Past Events (Archived)
+                      <span
+                        style={{
+                          background: "linear-gradient(90deg,#475569,#64748b)",
+                          color: "#fff",
+                          borderRadius: "999px",
+                          padding: "2px 12px",
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          marginLeft: "10px",
+                        }}
+                      >
+                        {pastEvents.length}
+                      </span>
+                    </h3>
+                    {pastEvents.length === 0 ? (
+                      <div style={styles.emptyState}>
+                        <p>No past events match the current criteria.</p>
                       </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </>
-          );
-        })()}
+                    ) : (
+                      pastEvents.map((event) => (
+                        <div
+                          className="event-card-past-hover"
+                          key={event._id}
+                          style={styles.eventCardPast}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "flex-start",
+                              gap: "10px",
+                              flexWrap: "wrap",
+                              marginBottom: "8px",
+                            }}
+                          >
+                            <div>
+                              <h4 style={styles.eventTitlePast}>
+                                {event.title}{" "}
+                                <span
+                                  style={{
+                                    fontSize: "0.8rem",
+                                    color: "#64748b",
+                                    fontWeight: 400,
+                                    textDecoration: "none",
+                                  }}
+                                >
+                                  ({event.eventCode || "N/A"})
+                                </span>
+                              </h4>
+                              <p
+                                style={{
+                                  margin: "0 0 6px",
+                                  color: "#64748b",
+                                  fontSize: "0.74rem",
+                                }}
+                              >
+                                Uploaded: {formatUploadDate(event.createdAt)}
+                              </p>
+                              <p style={styles.eventDatePast}>
+                                <span>📁</span>{" "}
+                                {new Date(event.date).toLocaleDateString(
+                                  "en-US",
+                                  {
+                                    year: "numeric",
+                                    month: "long",
+                                    day: "numeric",
+                                  },
+                                )}{" "}
+                                (Passed)
+                              </p>
+                            </div>
+                            <span
+                              style={{
+                                fontSize: "0.68rem",
+                                fontWeight: 700,
+                                padding: "4px 10px",
+                                borderRadius: "999px",
+                                background: "rgba(100,116,139,0.1)",
+                                color: "#64748b",
+                                border: "1px solid rgba(100,116,139,0.15)",
+                                letterSpacing: "0.05em",
+                              }}
+                            >
+                              PASSED
+                            </span>
+                          </div>
+                          {event.banner && (
+                            <div
+                              style={{
+                                marginBottom: "12px",
+                                borderRadius: "10px",
+                                overflow: "hidden",
+                                maxHeight: "150px",
+                                opacity: 0.8,
+                              }}
+                            >
+                              <img
+                                src={event.banner}
+                                alt={`${event.title} banner`}
+                                style={{
+                                  width: "100%",
+                                  objectFit: "cover",
+                                  maxHeight: "150px",
+                                  borderRadius: "10px",
+                                }}
+                              />
+                            </div>
+                          )}
+                          <p style={styles.eventDescPast}>
+                            {event.description}
+                          </p>
+                          {(event.location || event.time) && (
+                            <p
+                              style={{
+                                margin: "8px 0 0",
+                                color: "#64748b",
+                                fontSize: "0.78rem",
+                              }}
+                            >
+                              {event.location
+                                ? `Location: ${event.location}`
+                                : ""}
+                              {event.location && event.time ? " · " : ""}
+                              {event.time ? `Time: ${event.time}` : ""}
+                            </p>
+                          )}
+
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "10px",
+                              flexWrap: "wrap",
+                              marginTop: "12px",
+                            }}
+                            className="no-print"
+                          >
+                            {(event.attendeesCount > 0 ||
+                              (event.attendees &&
+                                event.attendees.length > 0)) && (
+                              <button
+                                onClick={() =>
+                                  setShowAttendeesFor(
+                                    showAttendeesFor === event._id
+                                      ? null
+                                      : event._id,
+                                  )
+                                }
+                                style={{
+                                  background: "rgba(100, 116, 139, 0.1)",
+                                  color: "#94a3b8",
+                                  border: "1px solid rgba(100, 116, 139, 0.2)",
+                                  borderRadius: "8px",
+                                  padding: "7px 16px",
+                                  cursor: "pointer",
+                                  fontSize: "0.8rem",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                👥 View Attendees (
+                                {event.attendees
+                                  ? event.attendees.length
+                                  : event.attendeesCount}
+                                )
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => editEvent(event)}
+                              style={styles.backBtn}
+                            >
+                              Edit Event
+                            </button>
+                            <button
+                              className="delete-btn"
+                              disabled={deletingId === event._id}
+                              onClick={() => deleteEvent(event._id)}
+                              style={{
+                                ...styles.deleteBtn,
+                                opacity: deletingId === event._id ? 0.6 : 1,
+                              }}
+                            >
+                              {deletingId === event._id
+                                ? "Deleting…"
+                                : "🗑️ Delete Event"}
+                            </button>
+                          </div>
+
+                          {showAttendeesFor === event._id &&
+                            event.attendees &&
+                            event.attendees.length > 0 && (
+                              <div
+                                style={{
+                                  marginTop: "16px",
+                                  padding: "16px",
+                                  background: "rgba(15, 23, 42, 0.6)",
+                                  borderRadius: "10px",
+                                  border: "1px solid rgba(255,255,255,0.05)",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    marginBottom: "12px",
+                                  }}
+                                >
+                                  <h5
+                                    style={{
+                                      margin: 0,
+                                      color: "#94a3b8",
+                                      fontSize: "0.85rem",
+                                    }}
+                                  >
+                                    Attendee Record
+                                  </h5>
+                                  <button
+                                    onClick={() =>
+                                      downloadAttendeesReport(event)
+                                    }
+                                    style={{
+                                      background:
+                                        "linear-gradient(90deg, #10b981, #059669)",
+                                      color: "#fff",
+                                      border: "none",
+                                      borderRadius: "6px",
+                                      padding: "4px 10px",
+                                      fontSize: "0.75rem",
+                                      fontWeight: 600,
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    ⬇ Download Report
+                                  </button>
+                                </div>
+                                <table
+                                  style={{
+                                    width: "100%",
+                                    fontSize: "0.8rem",
+                                    color: "#94a3b8",
+                                    borderCollapse: "collapse",
+                                    textAlign: "left",
+                                  }}
+                                >
+                                  <thead>
+                                    <tr>
+                                      <th
+                                        style={{
+                                          paddingBottom: "8px",
+                                          borderBottom:
+                                            "1px solid rgba(255,255,255,0.1)",
+                                        }}
+                                      >
+                                        Name
+                                      </th>
+                                      <th
+                                        style={{
+                                          paddingBottom: "8px",
+                                          borderBottom:
+                                            "1px solid rgba(255,255,255,0.1)",
+                                        }}
+                                      >
+                                        Member ID
+                                      </th>
+                                      <th
+                                        style={{
+                                          paddingBottom: "8px",
+                                          borderBottom:
+                                            "1px solid rgba(255,255,255,0.1)",
+                                        }}
+                                      >
+                                        National ID (masked)
+                                      </th>
+                                      <th
+                                        style={{
+                                          paddingBottom: "8px",
+                                          borderBottom:
+                                            "1px solid rgba(255,255,255,0.1)",
+                                        }}
+                                      >
+                                        Phone
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {event.attendees.map((a, i) => (
+                                      <tr key={i}>
+                                        <td
+                                          style={{
+                                            padding: "8px 0",
+                                            borderBottom:
+                                              "1px solid rgba(255,255,255,0.05)",
+                                          }}
+                                        >
+                                          {a.name}
+                                        </td>
+                                        <td
+                                          style={{
+                                            padding: "8px 0",
+                                            borderBottom:
+                                              "1px solid rgba(255,255,255,0.05)",
+                                          }}
+                                        >
+                                          {a.memberId || "N/A"}
+                                        </td>
+                                        <td
+                                          style={{
+                                            padding: "8px 0",
+                                            borderBottom:
+                                              "1px solid rgba(255,255,255,0.05)",
+                                          }}
+                                        >
+                                          {maskSensitiveId(
+                                            a.idNo || a.idNumber,
+                                          )}
+                                        </td>
+                                        <td
+                                          style={{
+                                            padding: "8px 0",
+                                            borderBottom:
+                                              "1px solid rgba(255,255,255,0.05)",
+                                          }}
+                                        >
+                                          {a.phone}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </>
+            );
+          })()
+        )}
       </main>
     </div>
   );

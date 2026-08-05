@@ -135,12 +135,17 @@ export default function AdminGallery() {
       const parts = first.webkitRelativePath.split("/");
       if (parts[0]) setFolderName(parts[0]);
     }
-    setPreviews(selected.slice(0, 10).map(f => ({
+    setPreviews(selected.map(f => ({
       name: f.name,
       url: URL.createObjectURL(f),
       type: f.type.startsWith("video") ? "video" : "image",
     })));
     showToast(`Loaded ${selected.length} file(s). Ready to upload!`);
+  }
+
+  function removeSelectedFile(index) {
+    setFiles((current) => current.filter((_, fileIndex) => fileIndex !== index));
+    setPreviews((current) => current.filter((_, previewIndex) => previewIndex !== index));
   }
 
   // ── Upload handler ───────────────────────────────────────────────────────────
@@ -415,15 +420,30 @@ export default function AdminGallery() {
             </div>
 
             {previews.length > 0 && (
-              <div className="ag-previews">
-                {previews.map((p, i) => (
-                  <div key={i} className="ag-preview-item">
-                    {p.type === "image"
-                      ? <img src={p.url} alt={p.name} className="ag-preview-thumb" />
-                      : <video src={p.url} className="ag-preview-thumb" muted />}
-                    <span className="ag-preview-name">{p.name}</span>
-                  </div>
-                ))}
+              <div className="ag-preview-review">
+                <div className="ag-preview-heading">
+                  <strong>Preview before upload</strong>
+                  <span>{files.length} file(s) selected</span>
+                </div>
+                <div className="ag-previews">
+                  {previews.map((p, i) => (
+                    <div key={`${p.name}-${i}`} className="ag-preview-item">
+                      {p.type === "image"
+                        ? <img src={p.url} alt={p.name} className="ag-preview-thumb" />
+                        : <video src={p.url} className="ag-preview-thumb" muted controls preload="metadata" />}
+                      <span className="ag-preview-name">{p.name}</span>
+                      <button
+                        type="button"
+                        className="ag-preview-remove"
+                        onClick={() => removeSelectedFile(i)}
+                        disabled={uploading}
+                        aria-label={`Remove ${p.name} from upload`}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

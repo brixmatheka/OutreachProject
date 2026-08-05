@@ -15,6 +15,18 @@ services:
         value: production
       - key: CLIENT_ORIGIN
         value: https://www.outreachhopechurch.org
+      - key: FRONTEND_URL
+        value: https://www.outreachhopechurch.org
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
       - key: UPLOAD_DIR
         value: /opt/render/project/src/backend/uploads
       - key: MONGO_URI
