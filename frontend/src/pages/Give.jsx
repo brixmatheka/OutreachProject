@@ -96,6 +96,32 @@ const GlobalStyle = () => (
       background: #fff;
       box-shadow: 0 0 0 3px rgba(14,165,233,0.15);
     }
+    .give-input:disabled, .give-select:disabled {
+      cursor: not-allowed;
+      opacity: 0.72;
+      color: #64748b;
+    }
+    .coming-soon-note {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 24px;
+      padding: 16px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+      color: #166534;
+    }
+    .quick-amount:disabled { cursor: not-allowed !important; opacity: 0.55; }
+
+    @media (max-width: 560px) {
+      .give-page { padding: 54px 14px 40px !important; }
+      .give-header { margin-bottom: 28px !important; }
+      .give-card { border-radius: 20px !important; }
+      .give-card-body { padding: 26px 18px 28px !important; }
+      .mpesa-heading { align-items: flex-start !important; gap: 14px; }
+      .trust-row { gap: 7px !important; }
+      .trust-chip { padding: 6px 10px; }
+    }
   `}</style>
 )
 
@@ -178,7 +204,7 @@ function Give() {
   const [amount, setAmount] = useState("")
   const [category, setCategory] = useState("")
   const [loading, setLoading] = useState(false)
-  const [status, setStatus] = useState({ type: "", message: "" }) // "waiting", "success", "error"
+  const [status, setStatus] = useState({ type: "", message: "" }) // "waiting", "success", "error", "comingSoon"
   const [requestId, setRequestId] = useState("")
   const pollTimer = useRef(null)
 
@@ -223,69 +249,12 @@ function Give() {
     }
   };
 
-  const handleMpesaPay = async () => {
-    if (!category) {
-      alert("Please select a giving type (Offering, Tithe, etc.).")
-      return
-    }
-    if (phone.length !== 9) {
-      alert("Please enter a valid 9-digit mobile number.")
-      return
-    }
-    setLoading(true)
-    setStatus({ type: "waiting", message: "Sending request to your phone..." })
-
-    try {
-      const firstName = localStorage.getItem("memberName") || "Guest";
-      const lastName = localStorage.getItem("memberLastName") || "";
-      const memberId = localStorage.getItem("memberId") || "0000";
-
-      const response = await fetch("/api/stkpush", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          phone: `254${phone}`, 
-          amount, 
-          category,
-          firstName,
-          lastName,
-          memberId
-        }),
-      })
-      const data = await response.json()
-
-      if (response.ok) {
-        const rid = data.CheckoutRequestID;
-        setRequestId(rid);
-        setStatus({ type: "waiting", message: "Please check your phone and enter your M-Pesa PIN..." })
-
-        // Polling logic
-        let pollCount = 0;
-        const maxPolls = 30; // Poll for 150 seconds (30 * 5s)
-
-        if (pollTimer.current) clearInterval(pollTimer.current);
-        
-        pollTimer.current = setInterval(async () => {
-          pollCount++;
-          if (pollCount > maxPolls) {
-            if (pollTimer.current) clearInterval(pollTimer.current);
-            setStatus({ type: "error", message: "Transaction timed out. If you entered your PIN, please check your M-Pesa messages for confirmation." });
-            setLoading(false);
-            return;
-          }
-          await checkStatus(rid);
-        }, 5000); // Poll every 5 seconds
-
-      } else {
-        setStatus({ type: "error", message: data.message || "Something went wrong." })
-        setLoading(false);
-      }
-    } catch (error) {
-      console.error(error)
-      setStatus({ type: "error", message: "Failed to connect to payment server." })
-    } finally {
-      setLoading(false)
-    }
+  const handleMpesaPay = () => {
+    setLoading(false)
+    setStatus({
+      type: "comingSoon",
+      message: "Our M-Pesa giving experience is getting a little polish and will be ready soon. Thank you for your joyful heart to give! Currently use the manual church paybill"
+    })
   }
 
   return (
@@ -303,7 +272,7 @@ function Give() {
         <CloseButton />
 
         {/* ── Page header ── */}
-        <div style={{ textAlign: "center", marginBottom: "44px", paddingTop: "8px" }}>
+        <div className="give-header" style={{ textAlign: "center", marginBottom: "44px", paddingTop: "8px" }}>
           <div style={{
             display: "inline-flex",
             alignItems: "center",
@@ -343,7 +312,7 @@ function Give() {
         </div>
 
         {/* ── Card ── */}
-        <div style={{
+        <div className="give-card" style={{
           maxWidth: "480px",
           margin: "0 auto",
           background: "#fff",
@@ -359,10 +328,10 @@ function Give() {
             background: "linear-gradient(90deg, #0369a1, #38bdf8)",
           }} />
 
-          <div style={{ padding: "32px 30px 36px" }}>
+          <div className="give-card-body" style={{ padding: "32px 30px 36px" }}>
 
             {/* M-Pesa label row */}
-            <div style={{
+            <div className="mpesa-heading" style={{
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
@@ -397,7 +366,17 @@ function Give() {
                 color: "#15803d",
                 letterSpacing: "0.3px",
               }}>
-                M-PESA
+                COMING SOON
+              </div>
+            </div>
+
+            <div className="coming-soon-note" role="status">
+              <span aria-hidden="true" style={{ fontSize: "1.35rem", lineHeight: 1 }}>🌱</span>
+              <div>
+                <strong style={{ display: "block", marginBottom: "4px" }}>Online giving is almost ready</strong>
+                <span style={{ fontSize: "0.84rem", lineHeight: 1.55 }}>
+                  We’re giving our M-Pesa experience a final polish. The preview below is temporarily paused.
+                </span>
               </div>
             </div>
 
@@ -441,6 +420,7 @@ function Give() {
                 </div>
                 <select
                   className="give-select"
+                  disabled
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                 >
@@ -489,6 +469,7 @@ function Give() {
                 </div>
                 <input
                   className="give-input"
+                  disabled
                   style={{ paddingLeft: "82px" }}
                   type="tel"
                   value={phone}
@@ -536,6 +517,7 @@ function Give() {
                 </div>
                 <input
                   className="give-input"
+                  disabled
                   type="number"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
@@ -555,6 +537,8 @@ function Give() {
               {quickAmounts.map((q) => (
                 <button
                   key={q}
+                  className="quick-amount"
+                  disabled
                   onClick={() => setAmount(q)}
                   style={{
                     padding: "6px 14px",
@@ -600,7 +584,7 @@ function Give() {
                   </>
                 ) : (
                   <>
-                    Confirm Donation
+                    M-Pesa Giving — Coming Soon
                     <IconArrowRight size={16} color="#fff" />
                   </>
                 )}
@@ -608,7 +592,7 @@ function Give() {
             </button>
 
             {/* Trust row */}
-            <div style={{
+            <div className="trust-row" style={{
               display: "flex",
               flexWrap: "wrap",
               justifyContent: "center",
@@ -616,9 +600,9 @@ function Give() {
               marginTop: "22px",
             }}>
               {[
-                { Icon: IconShield, label: "Secure Payment" },
-                { Icon: IconCheck, label: "Instant Receipt" },
-                { Icon: IconLock, label: "Encrypted" },
+                { Icon: IconShield, label: "Safe giving" },
+                { Icon: IconCheck, label: "Simple experience" },
+                { Icon: IconLock, label: "Launching soon" },
               ].map(({ Icon, label }) => (
                 <span className="trust-chip" key={label}>
                   <Icon size={13} color="#0369a1" />
@@ -677,6 +661,16 @@ function Give() {
                     animation: "scaleUp 0.3s ease both"
                   }}>✅</div>
                 )}
+                {status.type === "comingSoon" && (
+                  <div style={{
+                    width: "88px", height: "88px",
+                    background: "linear-gradient(135deg, #dcfce7, #bbf7d0)",
+                    borderRadius: "50%", margin: "0 auto", display: "flex",
+                    alignItems: "center", justifyContent: "center", fontSize: "38px",
+                    boxShadow: "0 12px 30px rgba(34, 197, 94, 0.24)",
+                    animation: "scaleUp 0.3s ease both"
+                  }}>🌱</div>
+                )}
                 {status.type === "error" && (
                   <div style={{
                     width: "80px", height: "80px", background: "#fef2f2",
@@ -690,11 +684,12 @@ function Give() {
               <h3 style={{
                 fontFamily: "'DM Serif Display', serif",
                 fontSize: "1.5rem",
-                color: status.type === "success" ? "#15803d" : "#0f172a",
+                color: status.type === "success" || status.type === "comingSoon" ? "#15803d" : "#0f172a",
                 marginBottom: "12px"
               }}>
                 {status.type === "waiting" ? "Payment Initiated" :
-                  status.type === "success" ? "Sent Successfully!" : "Payment Failed"}
+                  status.type === "success" ? "Sent Successfully!" :
+                    status.type === "comingSoon" ? "Something Good Is Growing!" : "Payment Failed"}
               </h3>
 
               <p style={{ 
@@ -757,6 +752,26 @@ function Give() {
                   }}
                 >
                   Try Again
+                </button>
+              )}
+
+              {status.type === "comingSoon" && (
+                <button
+                  onClick={() => setStatus({ type: "", message: "" })}
+                  style={{
+                    width: "100%",
+                    background: "linear-gradient(90deg, #15803d, #22c55e)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "12px",
+                    padding: "14px 30px",
+                    fontWeight: 700,
+                    fontSize: "0.95rem",
+                    cursor: "pointer",
+                    boxShadow: "0 8px 22px rgba(34, 197, 94, 0.28)",
+                  }}
+                >
+                  Got it — I’ll be back! 😊
                 </button>
               )}
             </div>

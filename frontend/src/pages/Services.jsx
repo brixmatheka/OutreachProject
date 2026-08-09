@@ -30,13 +30,12 @@ const GlobalStyle = () => (
       transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
       background: rgba(255, 255, 255, 0.6);
       backdrop-filter: blur(20px) saturate(180%);
-      border: 1px solid rgba(255, 255, 255, 0.3);
+      box-shadow: 0 16px 38px rgba(14, 116, 144, 0.09);
     }
     .glass-card:hover {
       transform: translateY(-8px);
       background: rgba(255, 255, 255, 0.9) !important;
       box-shadow: 0 20px 40px rgba(3, 105, 161, 0.15) !important;
-      border-color: #0ea5e9 !important;
     }
 
     .mesh-bg {
@@ -64,9 +63,46 @@ const GlobalStyle = () => (
       box-shadow: 0 10px 20px rgba(14, 165, 233, 0.2);
     }
 
+    .service-card { position: relative; overflow: hidden; }
+    .service-card::after {
+      content: "";
+      position: absolute;
+      width: 110px;
+      height: 110px;
+      right: -45px;
+      bottom: -50px;
+      border-radius: 50%;
+      background: rgba(56, 189, 248, 0.08);
+    }
+    .service-actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+    .service-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 13px 20px;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 0.88rem;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .service-action:hover { transform: translateY(-2px); }
+    .service-action.primary { color: #fff; background: linear-gradient(135deg, #0369a1, #0ea5e9); box-shadow: 0 10px 24px rgba(3,105,161,.22); }
+    .service-action.secondary { color: #0369a1; background: #e0f2fe; }
+
     @media (max-width: 640px) {
-      .mobile-padding { padding: 40px 20px !important; }
+      .services-page { padding: 0 0 40px !important; align-items: flex-start !important; }
+      .mobile-padding { padding: 62px 18px 34px !important; border-radius: 0 0 28px 28px !important; box-shadow: none !important; }
       .mobile-grid { grid-template-columns: 1fr !important; }
+      .services-header { margin-bottom: 34px !important; }
+      .services-header h1 { font-size: 2.45rem !important; }
+      .services-header p { font-size: 1rem !important; }
+      .services-grid { gap: 15px !important; }
+      .service-card { padding: 26px 22px !important; border-radius: 22px !important; }
+      .service-icon { width: 52px; height: 52px; margin-bottom: 16px; }
+      .services-footer { margin-top: 44px !important; padding: 28px 18px !important; }
+      .service-action { width: 100%; }
+      .glass-card:hover { transform: none; }
     }
   `}</style>
 );
@@ -96,10 +132,33 @@ const serviceList = [
 ];
 
 function Services() {
+  const openDirections = () => {
+    const latitude = -1.3218056
+    const longitude = 37.1065556
+    const isAppleMobile = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+
+    if (isAppleMobile) {
+      window.location.href = `maps://?daddr=${latitude},${longitude}&dirflg=d`
+      return
+    }
+
+    if (isMobile) {
+      window.location.href = `geo:0,0?q=${latitude},${longitude}(Outreach Hope Church Sunshine)`
+      return
+    }
+
+    window.open(
+      `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`,
+      "_blank",
+      "noopener,noreferrer"
+    )
+  }
+
   return (
     <>
       <GlobalStyle />
-      <div className="modern-services mesh-bg" style={{
+      <div className="modern-services mesh-bg services-page" style={{
         minHeight: "100vh",
         padding: "60px 20px",
         fontFamily: "'Inter', sans-serif",
@@ -113,7 +172,6 @@ function Services() {
           background: "rgba(255, 255, 255, 0.4)",
           backdropFilter: "blur(30px) saturate(180%)",
           borderRadius: "40px",
-          border: "1px solid rgba(255, 255, 255, 0.5)",
           boxShadow: "0 40px 100px rgba(0, 0, 0, 0.1)",
           padding: "60px 40px",
           position: "relative",
@@ -122,7 +180,15 @@ function Services() {
           
           <CloseButton />
 
-          <header style={{ textAlign: "center", marginBottom: "60px" }}>
+          <header className="services-header" style={{ textAlign: "center", marginBottom: "60px" }}>
+            <div style={{
+              display: "inline-flex", alignItems: "center", gap: "8px",
+              background: "rgba(255,255,255,.7)", color: "#0369a1",
+              padding: "8px 15px", borderRadius: "999px", marginBottom: "18px",
+              fontSize: ".76rem", fontWeight: 800, letterSpacing: ".8px", textTransform: "uppercase"
+            }}>
+              <span aria-hidden="true">●</span> Every Sunday · Everyone Welcome
+            </div>
             <h1 style={{
               fontFamily: "'DM Serif Display', serif",
               fontSize: "clamp(2.5rem, 8vw, 4rem)",
@@ -144,13 +210,13 @@ function Services() {
             </p>
           </header>
 
-          <div className="mobile-grid" style={{
+          <div className="mobile-grid services-grid" style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
             gap: "30px"
           }}>
             {serviceList.map((service, index) => (
-              <div key={index} className={`glass-card ${service.delay}`} style={{
+              <article key={index} className={`glass-card service-card ${service.delay}`} style={{
                 borderRadius: "32px",
                 padding: "40px",
                 display: "flex",
@@ -187,15 +253,16 @@ function Services() {
                 }}>
                   {service.desc}
                 </p>
-              </div>
+              </article>
             ))}
           </div>
 
-          <footer style={{
+          <footer className="services-footer" style={{
             marginTop: "80px",
             textAlign: "center",
-            paddingTop: "40px",
-            borderTop: "1px solid rgba(14, 165, 233, 0.2)"
+            padding: "38px 24px",
+            borderRadius: "28px",
+            background: "linear-gradient(135deg, rgba(255,255,255,.72), rgba(224,242,254,.82))"
           }}>
             <p style={{
               fontStyle: "italic",
@@ -210,6 +277,22 @@ function Services() {
                 — PSALM 119:105
               </span>
             </p>
+            <p style={{ color: "#475569", fontSize: ".9rem", margin: "22px auto 18px", lineHeight: 1.6 }}>
+              Planning your first visit? We’d love to welcome you and help you feel at home.
+            </p>
+            <div className="service-actions">
+              <button
+                type="button"
+                className="service-action primary"
+                onClick={openDirections}
+                style={{ border: 0, cursor: "pointer", fontFamily: "'Inter', sans-serif" }}
+              >
+                Get Directions ↗
+              </button>
+              <a className="service-action secondary" href="tel:+254722539649">
+                Call the Church
+              </a>
+            </div>
           </footer>
         </div>
       </div>

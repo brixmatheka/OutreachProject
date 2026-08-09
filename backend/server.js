@@ -1769,6 +1769,24 @@ app.patch("/announcements/:id/pin", verifyToken, requireAdminRoles(ROLES.SUPER_A
   res.json(item);
 });
 
+app.delete("/announcements/:id", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.EVENTS_ADMIN), async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid announcement ID" });
+    }
+    const item = await Event.findOneAndDelete({ _id: req.params.id, contentType: "announcement" });
+    if (!item) return res.status(404).json({ message: "Announcement not found" });
+
+    const pdfPath = resolveUploadPath(item.pdfUrl);
+    if (pdfPath && fs.existsSync(pdfPath)) {
+      try { fs.unlinkSync(pdfPath); } catch (fileError) { logError("Failed to remove deleted announcement PDF", fileError); }
+    }
+    res.json({ message: "Announcement deleted" });
+  } catch (err) {
+    handleServerError(res, err);
+  }
+});
+
 /* GET EVENTS WITH ATTENDEES (admin only) */
 app.get("/api/admin/events", verifyToken, requireAdminRoles(ROLES.SUPER_ADMIN, ROLES.EVENTS_ADMIN), async (req, res) => {
   try {

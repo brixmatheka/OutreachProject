@@ -61,7 +61,7 @@ export default function Bible() {
   };
 
   return (
-    <div className="app-root">
+    <div className="app-root bible-page">
       <main className="app-main" style={{ padding: "2rem 5vw", flexDirection: "column", gap: "2rem" }}>
         
         {/* Header Title */}
@@ -343,6 +343,11 @@ export default function Bible() {
           }
           
           @media (max-width: 900px) {
+            .bible-page {
+              --text-light: #f8fafc;
+              --text-muted: #cbd5e1;
+              background: #020617 !important;
+            }
             .bible-layout {
               grid-template-columns: 1fr !important;
             }

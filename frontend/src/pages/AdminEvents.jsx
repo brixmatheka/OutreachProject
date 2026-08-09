@@ -376,8 +376,12 @@ function AnnouncementAdmin({ items, refresh }) {
   };
   const remove = async (item) => {
     if (!window.confirm(`Delete announcement “${item.title}”?`)) return;
-    await axios.delete(`/events/${item._id}`);
-    await refresh();
+    try {
+      await axios.delete(`/announcements/${item._id}`);
+      await refresh();
+    } catch (err) {
+      alert(err.response?.data?.message || "Announcement could not be deleted.");
+    }
   };
   const pin = async (item) => {
     await axios.patch(`/announcements/${item._id}/pin`, {

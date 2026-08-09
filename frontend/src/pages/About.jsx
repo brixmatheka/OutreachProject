@@ -37,7 +37,6 @@ const GlobalStyle = () => (
       transform: translateY(-8px);
       background: rgba(255, 255, 255, 0.9) !important;
       box-shadow: 0 20px 40px rgba(3, 105, 161, 0.15) !important;
-      border-color: #0ea5e9 !important;
     }
 
     .impact-pill {
@@ -71,11 +70,43 @@ const GlobalStyle = () => (
     }
 
     @media (max-width: 640px) {
-      .mobile-padding { padding: 28px 16px !important; }
-      .mobile-hero { padding: 44px 16px 34px !important; }
-      .mobile-hero h1 { font-size: 2rem !important; }
-      .mobile-card-pad { padding: 24px 18px !important; }
+      .about-page { padding: 0 0 40px !important; align-items: flex-start; }
+      .about-shell { border-radius: 0 0 26px 26px !important; box-shadow: none !important; }
+      .mobile-padding { padding: 34px 18px 24px !important; }
+      .mobile-hero { padding: 68px 20px 40px !important; min-height: 310px; display: flex; flex-direction: column; justify-content: center; }
+      .mobile-hero h1 { font-size: clamp(2.15rem, 11vw, 2.75rem) !important; line-height: 1.04 !important; letter-spacing: -0.5px !important; }
+      .hero-kicker { padding: 7px 16px !important; }
+      .hero-kicker p { font-size: 0.78rem !important; letter-spacing: 1.1px !important; }
+      .hero-tagline { font-size: 0.96rem !important; line-height: 1.55 !important; margin: 18px auto 0 !important; max-width: 290px; }
+      .intro-section { margin-bottom: 36px !important; }
+      .intro-section h2 { font-size: 1.7rem !important; gap: 10px !important; }
+      .intro-section p { font-size: 1rem !important; line-height: 1.7 !important; }
+      .mobile-stat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 8px !important; margin-bottom: 48px !important; }
+      .impact-pill { padding: 18px 6px !important; border-radius: 18px !important; }
+      .impact-pill > div:first-child { font-size: 1.55rem !important; }
+      .impact-pill > div:last-child { font-size: 0.62rem !important; letter-spacing: 0.35px !important; line-height: 1.35; }
+      .mission-grid { gap: 16px !important; margin-bottom: 52px !important; }
+      .mission-grid .glass-card { padding: 26px 22px !important; border-radius: 22px !important; }
+      .values-section { margin-bottom: 46px !important; }
+      .values-section > h2 { font-size: 1.85rem !important; margin-bottom: 24px !important; }
+      .core-values-grid { gap: 12px !important; }
+      .core-values-grid .glass-card { padding: 24px 18px !important; border-radius: 20px !important; }
+      .goal-card { padding: 38px 20px !important; border-radius: 24px !important; margin-bottom: 48px !important; }
+      .goal-card h2 { font-size: 2rem !important; }
+      .goal-card p { font-size: 1rem !important; }
+      .goal-card div:last-child { font-size: 0.95rem !important; letter-spacing: 1px !important; }
+      .contact-section { margin-top: 20px !important; gap: 34px !important; padding-top: 0 !important; }
+      .contact-section iframe { height: 230px !important; border-radius: 20px !important; }
+      .contact-row { align-items: flex-start !important; gap: 12px !important; }
+      .contact-row > div:last-child { min-width: 0; }
+      .contact-row a { overflow-wrap: anywhere; font-size: 0.93rem; }
+      .about-footer { margin-top: 44px !important; padding: 24px 18px !important; border-radius: 20px !important; }
+      .glass-card:hover, .impact-pill:hover { transform: none; }
+    }
+
+    @media (max-width: 360px) {
       .mobile-stat-grid { grid-template-columns: 1fr !important; }
+      .impact-pill { padding: 16px !important; }
     }
   `}</style>
 );
@@ -98,7 +129,7 @@ function About() {
 
       {/* ── Page wrapper ── */}
       <div
-        className="modern-about mesh-bg"
+        className="modern-about mesh-bg about-page"
         style={{
           fontFamily: "'Inter', sans-serif",
           minHeight: "100vh",
@@ -108,14 +139,14 @@ function About() {
         }}
       >
         <div
+          className="about-shell"
           style={{
             maxWidth: "1000px",
             width: "100%",
             background: "rgba(255, 255, 255, 0.4)",
             backdropFilter: "blur(25px) saturate(180%)",
             borderRadius: "32px",
-            border: "1px solid rgba(255, 255, 255, 0.6)",
-            boxShadow: "0 30px 80px rgba(0, 0, 0, 0.08)",
+            boxShadow: "0 30px 80px rgba(14, 116, 144, 0.1)",
             overflow: "hidden",
             position: "relative",
           }}
@@ -133,7 +164,7 @@ function About() {
             }}
           >
             {/* Animated background elements */}
-            <div style={{
+            <div className="hero-kicker" style={{
               position: "absolute", top: "10%", left: "5%", width: "120px", height: "120px",
               background: "radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 70%)",
               animation: "float 6s infinite ease-in-out",
@@ -164,7 +195,7 @@ function About() {
               padding: "8px 24px",
               borderRadius: "100px",
               backdropFilter: "blur(10px)",
-              border: "1px solid rgba(255, 255, 255, 0.2)",
+              boxShadow: "0 10px 30px rgba(3, 105, 161, 0.16)",
               animation: "fadeUp 1s ease both 0.2s",
             }}>
               <span style={{ color: "#7dd3fc", fontWeight: 800, fontSize: "1.1rem" }}>✦</span>
@@ -180,7 +211,7 @@ function About() {
               </p>
             </div>
 
-            <p style={{
+            <p className="hero-tagline" style={{
               color: "rgba(255,255,255,0.8)",
               fontSize: "1.1rem",
               marginTop: "20px",
@@ -195,7 +226,7 @@ function About() {
           <div className="mobile-padding" style={{ padding: "60px 80px" }}>
 
             {/* Intro with modern emphasis */}
-            <div className="stagger-1" style={{ marginBottom: "60px" }}>
+            <div className="stagger-1 intro-section" style={{ marginBottom: "60px" }}>
               <h2 style={{
                 fontFamily: "'DM Serif Display', serif",
                 fontSize: "2rem",
@@ -244,7 +275,7 @@ function About() {
                     padding: "30px",
                     borderRadius: "24px",
                     textAlign: "center",
-                    border: "1px solid rgba(56, 189, 248, 0.25)",
+                    boxShadow: "0 12px 30px rgba(14, 165, 233, 0.1)",
                     cursor: "default"
                   }}
                 >
@@ -256,7 +287,7 @@ function About() {
 
             {/* ── Mission & Vision ── */}
             <div
-              className="mobile-grid mobile-stack stagger-3"
+              className="mobile-grid mobile-stack stagger-3 mission-grid"
               style={{
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
@@ -286,7 +317,6 @@ function About() {
                     background: item.bg,
                     padding: "40px",
                     borderRadius: "28px",
-                    border: "1px solid rgba(255,255,255,0.8)",
                     position: "relative",
                     display: "flex",
                     flexDirection: "column",
@@ -296,7 +326,7 @@ function About() {
                   <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.6rem", color: "#0c4a6e", marginBottom: "15px" }}>{item.title}</h3>
                   <p style={{ color: "#475569", lineHeight: 1.7, fontSize: "1.05rem", marginBottom: item.verse ? "20px" : 0 }}>{item.text}</p>
                   {item.verse && (
-                    <p style={{ color: "#0ea5e9", fontSize: "0.9rem", fontStyle: "italic", borderTop: "1.5px solid rgba(14,165,233,0.2)", paddingTop: "15px", marginTop: "auto" }}>
+                    <p style={{ color: "#0ea5e9", fontSize: "0.9rem", fontStyle: "italic", paddingTop: "18px", marginTop: "auto" }}>
                       {item.verse}
                     </p>
                   )}
@@ -305,10 +335,10 @@ function About() {
             </div>
 
             {/* ── Modern Values Section ── */}
-            <div style={{ textAlign: "center", marginBottom: "60px" }}>
+            <div className="values-section" style={{ textAlign: "center", marginBottom: "60px" }}>
               <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "2.2rem", color: "#0c4a6e", marginBottom: "40px" }}>Core Values</h2>
               <div
-                className="mobile-grid"
+                className="mobile-grid core-values-grid"
                 style={{
                   display: "grid",
                   gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
@@ -323,7 +353,6 @@ function About() {
                       background: "rgba(255,255,255,0.6)",
                       padding: "30px 20px",
                       borderRadius: "24px",
-                      border: "1px solid rgba(255,255,255,0.8)",
                       textAlign: "center",
                       display: "flex",
                       flexDirection: "column",
@@ -343,7 +372,7 @@ function About() {
 
             {/* ── Our Goal Section ── */}
             <div 
-              className="glass-card stagger-3"
+              className="glass-card stagger-3 goal-card"
               style={{ 
                 background: "linear-gradient(135deg, #0c4a6e 0%, #0369a1 100%)", 
                 padding: "60px 40px", 
@@ -373,21 +402,20 @@ function About() {
 
             {/*Enhanced Location & Contact  */}
             <div
-              className="mobile-grid mobile-stack"
+              className="mobile-grid mobile-stack contact-section"
               style={{
                 display: "grid",
                 gridTemplateColumns: "1.2fr 0.8fr",
                 gap: "40px",
                 marginTop: "100px",
-                borderTop: "1px solid #e2e8f0",
-                paddingTop: "60px"
+                paddingTop: "20px"
               }}
             >
               <div>
                 <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.8rem", color: "#0c4a6e", marginBottom: "20px" }}>Visit Us</h3>
                 <iframe
                   title="Church Location Map"
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d15955.277!2d37.1166!3d-1.3000!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zTWlzc2lvbiBvZiBIb3BlIEpvc2thIEdpcmxz!5e0!3m2!1sen!2ske!4v1"
+                  src="https://www.google.com/maps?q=-1.3218056,37.1065556&z=16&output=embed"
                   width="100%"
                   height="300"
                   style={{
@@ -404,10 +432,10 @@ function About() {
                 <div style={{ gap: "25px", display: "flex", flexDirection: "column" }}>
                   {[
                     { icon: "📞", label: "Call Us", val: "+254 722539649", link: "tel:+254722539649" },
-                    { icon: "✉️", label: "Email", val: "outreachhopechurch.sunshine@gmail.com", link: "mailto:outreachhopechurch.sunshine@gmail.com" },
+                    { icon: "✉️", label: "Email", val: "info@outreachhopechurch.org", link: "mailto:info@outreachhopechurch.org" },
                     { icon: "🌐", label: "Web", val: "outreachhopechurch.org", link: "https://outreachhopechurch.org" }
                   ].map(c => (
-                    <div key={c.label} style={{ display: "flex", alignItems: "center", gap: "15px" }}>
+                    <div key={c.label} className="contact-row" style={{ display: "flex", alignItems: "center", gap: "15px" }}>
                       <div style={{
                         width: "50px", height: "50px", background: "#f0f9ff",
                         borderRadius: "15px", display: "flex", alignItems: "center",
@@ -438,11 +466,12 @@ function About() {
             </div>
 
             {/* ── Mini Footer (Inside Card) ── */}
-            <footer style={{
+            <footer className="about-footer" style={{
               background: "rgba(241, 245, 249, 0.5)",
               padding: "30px 40px",
               textAlign: "center",
-              borderTop: "1px solid rgba(255, 255, 255, 0.8)"
+              borderRadius: "24px",
+              marginTop: "60px"
             }}>
               <p style={{
                 margin: "0 0 10px",
