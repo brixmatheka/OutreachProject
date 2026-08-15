@@ -66,7 +66,6 @@ const GlobalStyle = () => (
     .events-page {
       animation: fadeIn 0.45s ease both;
       font-family: 'Inter', system-ui, sans-serif;
-      background: linear-gradient(180deg, #f8fbff 0%, #eef6fb 52%, #f8fafc 100%) !important;
     }
     .events-page-shell {
       max-width: 1120px;
@@ -86,7 +85,7 @@ const GlobalStyle = () => (
       overflow: hidden;
       isolation: isolate;
       box-shadow: 0 34px 90px rgba(8, 47, 73, 0.26);
-      background: linear-gradient(135deg, #082f49, #075985 58%, #0ea5e9);
+      background: linear-gradient(135deg, #082f49, #0369a1 58%, #f59e0b);
     }
     .event-hero-media::before {
       content: "";
@@ -270,10 +269,7 @@ const GlobalStyle = () => (
 
     .ev-card {
       border: none !important;
-      border-radius: 24px !important;
-      background: rgba(255,255,255,.94) !important;
-      box-shadow: 0 18px 48px rgba(15, 49, 77, 0.12) !important;
-      transition: transform 0.28s ease, box-shadow 0.28s ease;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
     .ev-card:hover {
       transform: translateY(-4px);
@@ -285,7 +281,7 @@ const GlobalStyle = () => (
       height: 220px;
       overflow: hidden;
       isolation: isolate;
-      background: linear-gradient(135deg, #082f49, #0369a1 58%, #38bdf8);
+      background: linear-gradient(135deg, #082f49, #0ea5e9 55%, #f59e0b);
     }
     .event-banner-shell::before {
       content: "";
@@ -324,9 +320,6 @@ const GlobalStyle = () => (
 
     .proj-card {
       border: none !important;
-      border-radius: 24px !important;
-      background: rgba(255,255,255,.94) !important;
-      box-shadow: 0 18px 48px rgba(15, 49, 77, 0.11) !important;
       transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
     }
     .proj-card:hover {
@@ -340,64 +333,6 @@ const GlobalStyle = () => (
       background-size: 600px 100%;
       animation: shimmer 1.5s infinite linear;
       border-radius: 8px;
-    }
-
-    .content-carousel {
-      display: flex !important;
-      grid-template-columns: none !important;
-      gap: 20px !important;
-      overflow-x: auto;
-      overflow-y: hidden;
-      padding: 8px 4px 26px;
-      margin-inline: -4px;
-      scroll-snap-type: x mandatory;
-      scroll-behavior: smooth;
-      overscroll-behavior-inline: contain;
-      scrollbar-width: thin;
-      scrollbar-color: #7dd3fc rgba(186,230,253,.28);
-    }
-    .content-carousel::-webkit-scrollbar { height: 7px; }
-    .content-carousel::-webkit-scrollbar-track { background: rgba(186,230,253,.3); border-radius: 999px; }
-    .content-carousel::-webkit-scrollbar-thumb { background: linear-gradient(90deg,#0369a1,#38bdf8); border-radius: 999px; }
-    .content-carousel > * {
-      flex: 0 0 clamp(290px, 42vw, 410px);
-      scroll-snap-align: start;
-      scroll-snap-stop: always;
-    }
-    .announcement-carousel > * { flex-basis: clamp(280px, 48vw, 470px); }
-    .announcement-card {
-      position: relative;
-      min-height: 210px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      border-radius: 22px !important;
-      background: linear-gradient(145deg, rgba(255,255,255,.13), rgba(125,211,252,.07)) !important;
-      box-shadow: 0 18px 42px rgba(2,6,23,.2);
-      transition: transform .25s ease, border-color .25s ease;
-    }
-    .announcement-card:hover { transform: translateY(-4px); border-color: rgba(125,211,252,.48) !important; }
-    #announcements h2 { color: #f8fafc !important; }
-    #announcements > div:first-child p { color: #bae6fd !important; }
-    .announcement-card button {
-      min-height: 38px;
-      padding: 8px 12px;
-      border: 1px solid rgba(125,211,252,.28);
-      border-radius: 10px;
-      background: rgba(14,165,233,.13);
-      color: #e0f2fe;
-      font: inherit;
-      font-size: .76rem;
-      font-weight: 800;
-      cursor: pointer;
-    }
-    .announcement-card button:hover { background: rgba(14,165,233,.28); }
-    .section-carousel-hint {
-      display: block;
-      margin: -20px 0 18px;
-      color: #64748b;
-      font-size: .76rem;
-      font-weight: 700;
     }
 
     @media (max-width: 640px) {
@@ -423,18 +358,6 @@ const GlobalStyle = () => (
       .event-banner-img {
         width: 150%;
         animation-duration: 24s;
-      }
-      .content-carousel {
-        gap: 14px !important;
-        margin-right: -24px;
-        padding-right: 24px;
-      }
-      .content-carousel > *,
-      .announcement-carousel > * {
-        flex-basis: min(84vw, 340px);
-      }
-      #announcements > div:nth-of-type(2) {
-        grid-template-columns: 1fr !important;
       }
     }
   `}</style>
@@ -752,7 +675,7 @@ function EventCard({ event, userProfile }) {
                     fontWeight: 600, cursor: "pointer", transition: "all 0.2s"
                   }}
                 >
-                  I Will Attend
+                  I'm Interested
                 </button>
               ) : !showConfirmed ? (
                 <div style={{ background: "#f8fafc", padding: "16px", borderRadius: "10px", border: "1px solid #e2e8f0", animation: "fadeIn 0.3s" }}>
@@ -791,7 +714,7 @@ function EventCard({ event, userProfile }) {
                   display: "inline-flex", alignItems: "center", gap: "6px",
                   animation: "fadeIn 0.3s", border: "1px solid #bbf7d0"
                 }}>
-                  <span aria-label="Attendance confirmed" title="Attendance confirmed" style={{ fontSize: "1.05rem", fontWeight: 900 }}>✓</span>
+                  ✅ See you there!
                 </div>
               )}
             </div>
@@ -878,7 +801,7 @@ function AnnouncementBoard({ announcements }) {
   };
   if (!announcements.length) return (
     <section id="announcements" style={{ margin: "0 0 48px", padding: "clamp(18px,4vw,32px)", borderRadius: "24px", background: "linear-gradient(145deg,#082f49,#0c4a6e)", color: "white", boxShadow: "0 24px 55px rgba(3,105,161,.2)" }}>
-      <SectionHeading title="1. Church Announcements" subtitle="Important updates and ministry notices appear here first." />
+      <SectionHeading title="Church Announcements" subtitle="Important updates and ministry notices appear here first." />
       <p style={{ margin: 0, padding: "18px", borderRadius: "14px", background: "rgba(255,255,255,.08)", color: "#bae6fd" }}>
         There are no active announcements right now.
       </p>
@@ -886,14 +809,13 @@ function AnnouncementBoard({ announcements }) {
   );
   return (
     <section id="announcements" style={{ margin: "0 0 48px", padding: "clamp(18px,4vw,32px)", borderRadius: "24px", background: "linear-gradient(145deg,#082f49,#0c4a6e)", color: "white", boxShadow: "0 24px 55px rgba(3,105,161,.2)" }}>
-      <SectionHeading title="1. Church Announcements" subtitle="Important updates, ministry notices, and opportunities for our church family." />
+      <SectionHeading title=" Church Announcements" subtitle="Important updates" />
       <div style={{ display: "grid", gridTemplateColumns: "minmax(180px,1fr) minmax(150px,220px)", gap: "10px", marginBottom: "18px" }}>
         <input aria-label="Search announcements" placeholder="Search announcements..." value={query} onChange={(e) => setQuery(e.target.value)} style={{ padding: "12px 14px", borderRadius: "10px", border: "1px solid #7dd3fc", fontSize: "16px" }} />
         <select aria-label="Filter announcement category" value={category} onChange={(e) => setCategory(e.target.value)} style={{ padding: "12px", borderRadius: "10px", fontSize: "16px" }}>{categories.map((item) => <option key={item}>{item}</option>)}</select>
       </div>
-      <span className="section-carousel-hint" style={{ color: "#bae6fd" }}>Swipe or scroll to explore announcements →</span>
-      <div className="content-carousel announcement-carousel">
-        {visible.map((item) => <article className="announcement-card" key={item._id} style={{ padding: "18px", border: `1px solid ${item.isPinned ? "rgba(251,191,36,.55)" : "rgba(255,255,255,.14)"}` }}>
+      <div style={{ display: "grid", gap: "12px" }}>
+        {visible.map((item) => <article key={item._id} style={{ padding: "16px", borderRadius: "16px", background: item.isPinned ? "rgba(251,191,36,.16)" : "rgba(255,255,255,.09)", border: `1px solid ${item.isPinned ? "rgba(251,191,36,.55)" : "rgba(255,255,255,.14)"}` }}>
           <div><div style={{ display: "flex", gap: "8px", flexWrap: "wrap", fontSize: ".7rem", color: "#bae6fd" }}>{item.isPinned && <b style={{ color: "#fde68a" }}>PINNED</b>}<span>{item.category || "General"}</span><span>{item.targetAudience || "Everyone"}</span></div><h3 style={{ margin: "7px 0", color: "white" }}>{item.title}</h3><p style={{ margin: "0 0 10px", color: "#cbd5e1", lineHeight: 1.55 }}>{item.description?.slice(0, 180)}{item.description?.length > 180 ? "..." : ""}</p><div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}><button onClick={() => setSelected(item)}>View details</button><button onClick={() => share(item)}>Share</button>{item.pdfUrl && <a href={fileUrl(item.pdfUrl)} target="_blank" rel="noreferrer" style={{ color: "#fde68a" }}>Open PDF</a>}</div></div>
         </article>)}
       </div>
@@ -1039,10 +961,9 @@ function Events() {
                 : "Loading events…"
             }
           />
-          {!loading && events.length > 1 && <span className="section-carousel-hint">Swipe or scroll through upcoming events →</span>}
 
           {loading && (
-            <div className="content-carousel" style={{
+            <div style={{
               display: "grid",
               gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))",
               gap: "18px",
@@ -1083,7 +1004,7 @@ function Events() {
           )}
 
           {!loading && events.length > 0 && (
-            <div className="content-carousel" style={{
+            <div style={{
               display: "grid",
               gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
               gap: "20px",
@@ -1116,10 +1037,9 @@ function Events() {
               title="3. Ongoing & Upcoming Projects"
               subtitle={`${projects.length} active initiatives in our community`}
             />
-            {!loading && projects.length > 1 && <span className="section-carousel-hint">Swipe or scroll through church projects →</span>}
 
             {loading ? (
-              <div className="content-carousel" style={{
+              <div style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
                 gap: "20px",
@@ -1137,7 +1057,7 @@ function Events() {
                 <p style={{ color: "#64748b", margin: 0 }}>No active projects at the moment.</p>
               </div>
             ) : (
-              <div className="content-carousel" style={{
+              <div style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
                 gap: "20px",

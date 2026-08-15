@@ -17,6 +17,7 @@ function MemberSignup() {
     confirmPassword: ""
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [dobParts, setDobParts] = useState({ day: "", month: "", year: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [agreed, setAgreed] = useState(false);
@@ -34,6 +35,7 @@ function MemberSignup() {
 
   const handleChange = (e) => {
     let { name, value } = e.target;
+    if (error) setError("");
     if (name === "firstName" || name === "lastName") {
       value = value.replace(/[^a-zA-Z\s]/g, "");
     } else if (name === "phone") {
@@ -62,8 +64,35 @@ function MemberSignup() {
     });
   };
 
+  const handleDobChange = (part, value) => {
+    setDobParts((previous) => {
+      const updated = { ...previous, [part]: value };
+      const { day, month, year } = updated;
+      let dateOfBirth = "";
+
+      if (day && month && year) {
+        const daysInMonth = new Date(Number(year), Number(month), 0).getDate();
+        if (Number(day) <= daysInMonth) {
+          dateOfBirth = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+        }
+      }
+
+      setFormData((current) => ({
+        ...current,
+        dateOfBirth,
+        ...(dateOfBirth && calculateAge(dateOfBirth) <= 18 ? { idNo: "" } : {})
+      }));
+      if (error) setError("");
+      return updated;
+    });
+  };
+
   const handleSignup = async (e) => {
     e.preventDefault();
+    if (!formData.dateOfBirth) {
+      setError("Please select a valid date of birth.");
+      return;
+    }
     if (!agreed) {
       setError("You must agree to the Terms and Conditions to sign up.");
       return;
@@ -134,9 +163,9 @@ function MemberSignup() {
         <h2 style={styles.title}>Join Our Community</h2>
         <p style={styles.subtitle}>Create an account to access all church features</p>
 
-        {error && <div style={styles.errorBanner}>{error}</div>}
+        {error && <div role="alert" aria-live="assertive" style={styles.errorBanner}>{error}</div>}
 
-        <form onSubmit={handleSignup} style={styles.form}>
+        <form onSubmit={handleSignup} style={styles.form} autoComplete="off">
           <div className="member-signup-row" style={styles.row}>
             <div style={styles.inputGroup}>
               <label style={styles.label}>First Name</label>
@@ -147,6 +176,7 @@ function MemberSignup() {
                 value={formData.firstName}
                 onChange={handleChange}
                 placeholder="enter your first name "
+                autoComplete="off"
                 style={styles.input}
               />
             </div>
@@ -159,6 +189,7 @@ function MemberSignup() {
                 value={formData.lastName}
                 onChange={handleChange}
                 placeholder="enter your last name"
+                autoComplete="off"
                 style={styles.input}
               />
             </div>
@@ -203,6 +234,7 @@ function MemberSignup() {
                 onChange={handleChange}
                 placeholder="7XXXXXXXX or 1XXXXXXXX"
                 maxLength={9}
+                autoComplete="off"
                 style={{ ...styles.input, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
               />
             </div>
@@ -233,7 +265,7 @@ function MemberSignup() {
               value={formData.residence}
               onChange={handleChange}
               placeholder="e.g. Sunshine, Nairobi"
-              autoComplete="street-address"
+              autoComplete="off"
               maxLength={120}
               style={styles.input}
             />
@@ -262,15 +294,22 @@ function MemberSignup() {
                 </span>
               )}
             </label>
-            <input
-              name="dateOfBirth"
-              type="date"
-              required
-              value={formData.dateOfBirth}
-              onChange={handleChange}
-              style={styles.input}
-              max={new Date(new Date().setFullYear(new Date().getFullYear() - 12)).toISOString().split("T")[0]}
-            />
+            <div className="member-signup-dob" style={styles.dobRow}>
+              <select aria-label="Birth day" required value={dobParts.day} onChange={(e) => handleDobChange("day", e.target.value)} style={styles.input}>
+                <option value="">Day</option>
+                {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => <option key={day} value={day}>{day}</option>)}
+              </select>
+              <select aria-label="Birth month" required value={dobParts.month} onChange={(e) => handleDobChange("month", e.target.value)} style={styles.input}>
+                <option value="">Month</option>
+                {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((month, index) => (
+                  <option key={month} value={index + 1}>{month}</option>
+                ))}
+              </select>
+              <select aria-label="Birth year" required value={dobParts.year} onChange={(e) => handleDobChange("year", e.target.value)} style={styles.input}>
+                <option value="">Year</option>
+                {Array.from({ length: 89 }, (_, index) => new Date().getFullYear() - 12 - index).map((year) => <option key={year} value={year}>{year}</option>)}
+              </select>
+            </div>
           </div>
 
           {calculateAge(formData.dateOfBirth) > 18 && (
@@ -284,6 +323,7 @@ function MemberSignup() {
                 onChange={handleChange}
                 placeholder="enter your ID number"
                 maxLength={14}
+                autoComplete="off"
                 style={styles.input}
               />
             </div>
@@ -299,6 +339,7 @@ function MemberSignup() {
                 value={formData.password}
                 onChange={handleChange}
                 placeholder="enter your password"
+                autoComplete="new-password"
                 style={styles.inputPassword}
               />
               <button
@@ -320,6 +361,7 @@ function MemberSignup() {
               value={formData.confirmPassword}
               onChange={handleChange}
               placeholder="confirm your password"
+              autoComplete="new-password"
               style={styles.input}
             />
           </div>
@@ -408,13 +450,19 @@ const styles = {
     lineHeight: "1.5"
   },
   errorBanner: {
+    position: "fixed",
+    left: "50%",
+    bottom: "max(20px, env(safe-area-inset-bottom))",
+    transform: "translateX(-50%)",
+    width: "min(460px, calc(100vw - 32px))",
+    zIndex: 1000,
     backgroundColor: "#fef2f2",
     color: "#b91c1c",
     padding: "12px",
     borderRadius: "12px",
     fontSize: "0.875rem",
-    marginBottom: "20px",
-    border: "1px solid #fee2e2"
+    border: "1px solid #fecaca",
+    boxShadow: "0 12px 32px rgba(127, 29, 29, 0.2)"
   },
   form: {
     display: "flex",
@@ -428,6 +476,11 @@ const styles = {
   },
   inputGroup: {
     textAlign: "left"
+  },
+  dobRow: {
+    display: "grid",
+    gridTemplateColumns: "0.75fr 1.4fr 1fr",
+    gap: "8px"
   },
   label: {
     display: "block",

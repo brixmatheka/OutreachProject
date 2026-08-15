@@ -118,7 +118,7 @@ const mailTransport = SMTP_HOST && SMTP_USER && SMTP_PASS
   : null;
 
 const MAX_UPLOAD_FILE_SIZE = 25 * 1024 * 1024;
-const MAX_GALLERY_FILES = 20;
+const MAX_GALLERY_FILES = 100;
 const MAX_TEXT_LENGTH = 5000;
 const MAX_MPESA_AMOUNT = 250000;
 const ADMIN_COOKIE = "ohc_admin";
@@ -3355,6 +3355,11 @@ app.delete("/api/ministers/:id", verifyToken, requireAdminRoles(ROLES.SUPER_ADMI
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     const status = err.code === "LIMIT_FILE_SIZE" ? 413 : 400;
+    if (err.code === "LIMIT_FILE_COUNT") {
+      return res.status(status).json({
+        message: `Too many files. Please upload up to ${MAX_GALLERY_FILES} files at a time.`
+      });
+    }
     return res.status(status).json({ message: err.message });
   }
 

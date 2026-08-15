@@ -12,6 +12,8 @@ const formatUploadDate = (value) => {
     : date.toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" });
 };
 
+const MAX_GALLERY_UPLOAD_FILES = 100;
+
 // ─── Helper: always read token fresh from localStorage ───────────────────────
 function getAdminToken() {
   return localStorage.getItem("token") || localStorage.getItem("adminToken") || null;
@@ -109,6 +111,11 @@ export default function AdminGallery() {
   // ── File change (individual files) ──────────────────────────────────────────
   function handleFileChange(e) {
     const selected = Array.from(e.target.files);
+    if (selected.length > MAX_GALLERY_UPLOAD_FILES) {
+      showToast(`Please select up to ${MAX_GALLERY_UPLOAD_FILES} files at a time.`, "error");
+      e.target.value = "";
+      return;
+    }
     setFiles(selected);
     setPreviews(selected.map(f => ({
       name: f.name,
@@ -127,6 +134,11 @@ export default function AdminGallery() {
     );
     if (selected.length === 0) {
       showToast("No images or videos found in the selected folder.", "error");
+      return;
+    }
+    if (selected.length > MAX_GALLERY_UPLOAD_FILES) {
+      showToast(`Please select up to ${MAX_GALLERY_UPLOAD_FILES} files per upload.`, "error");
+      e.target.value = "";
       return;
     }
     setFiles(selected);
